@@ -57,6 +57,8 @@ STAGES = {
                  "label": "개선3 · Test-Time Scaling (자기검증 2패스)"},
     "soap":     {"prompt": "soap.txt",             "self_verify": False,  # 명시적 S/O/A/P + 세부헤더
                  "label": "최종 · SOAP 규격 (컨텍스트+인용+미확인)"},
+    "soap_strict": {"prompt": "soap_strict.txt",   "self_verify": False, "structured": True,
+                    "label": "최종+ · 구조 강제 디코딩 (스키마 보장)"},  # 형식·인용범위를 디코더가 강제
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
 JUDGE_PROMPT = "judge_grounded.txt"
