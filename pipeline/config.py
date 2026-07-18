@@ -45,12 +45,18 @@ for _name, _spec in MODELS.items():
 JUDGE_MODEL = "qwen2.5-32b"
 
 # 프롬프트 단계(§4). improve3 = improve2 프롬프트 + 자기검증 2차 패스(Test-Time Scaling).
+# label = 표시용 이름(웹 UI·리포트) — 키는 파일명·CLI 호환을 위해 유지.
 STAGES = {
-    "baseline": {"prompt": "baseline.txt",         "self_verify": False},
-    "improve1": {"prompt": "improve1_prompt.txt",  "self_verify": False},
-    "improve2": {"prompt": "improve2_context.txt", "self_verify": False},
-    "improve3": {"prompt": "improve2_context.txt", "self_verify": True},
-    "soap":     {"prompt": "soap.txt",             "self_verify": False},  # 명시적 S/O/A/P + 세부헤더
+    "baseline": {"prompt": "baseline.txt",         "self_verify": False,
+                 "label": "Baseline — 맨몸 프롬프트"},
+    "improve1": {"prompt": "improve1_prompt.txt",  "self_verify": False,
+                 "label": "개선1 · 프롬프트 엔지니어링 (규칙 강화)"},
+    "improve2": {"prompt": "improve2_context.txt", "self_verify": False,
+                 "label": "개선2 · 컨텍스트 엔지니어링 ([T#] 구조화)"},
+    "improve3": {"prompt": "improve2_context.txt", "self_verify": True,
+                 "label": "개선3 · Test-Time Scaling (자기검증 2패스)"},
+    "soap":     {"prompt": "soap.txt",             "self_verify": False,  # 명시적 S/O/A/P + 세부헤더
+                 "label": "최종 · SOAP 규격 (컨텍스트+인용+미확인)"},
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
 JUDGE_PROMPT = "judge_grounded.txt"

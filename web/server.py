@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "data" / "aci-bench" / "baselines"))
 
-from pipeline import clients, config, dialogue  # noqa: E402
+from pipeline import clients, config, dialogue, judge  # noqa: E402
 from pipeline.generate import generate_one  # noqa: E402
 from pipeline.translate import translate_note, translate_texts  # noqa: E402
 from sectiontagger import SectionTagger  # noqa: E402
@@ -127,8 +127,8 @@ def index():
 
 @app.get("/config")
 def get_config():
-    return {"stages": list(config.STAGES), "models": list(config.MODELS),
-            "judge": config.JUDGE_MODEL}
+    return {"stages": [{"key": k, "label": v.get("label", k)} for k, v in config.STAGES.items()],
+            "models": list(config.MODELS), "judge": config.JUDGE_MODEL}
 
 
 @app.get("/prompt/{stage}")
@@ -146,6 +146,27 @@ def sample():
     recs = dialogue.load("aci", "valid", limit=1)
     r = recs[0]
     return {"encounter_id": r["encounter_id"], "dialogue": r["dialogue"]}
+
+
+class JudgeReq(BaseModel):
+    dialogue: str
+    note: str  # 영어 노트 기준 판정(채점·근거검증은 영어 원문 원칙)
+    judge_model: str = config.JUDGE_MODEL
+
+
+@app.post("/judge_note")
+def judge_note_ep(req: JudgeReq):
+    """문장별 근거 판정(D5와 동일 로직·프롬프트) — UI 환각 표시용."""
+    try:
+        turns = dialogue.parse_turns(req.dialogue)
+        convo = dialogue.format_dialogue(turns)
+        sys_prompt = (config.PROMPTS / config.JUDGE_PROMPT).read_text(encoding="utf-8").strip()
+        t0 = time.time()
+        rows = judge.judge_note(req.judge_model, sys_prompt, convo, req.note, workers=16)
+        return {"rows": rows, "summary": judge.summarize(rows),
+                "judge_model": req.judge_model, "judge_ms": int((time.time() - t0) * 1000)}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 class TrTurnsReq(BaseModel):

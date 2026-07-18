@@ -25,6 +25,7 @@ _CITE_TURN = re.compile(r"T(\d+)")
 _CITE_BLOCK = re.compile(r"\[T\d+(?:\s*,\s*T?\d+)*\]")
 _JSON = re.compile(r"\{[^{}]*\}")
 _HEADER = re.compile(r"^[A-Z][A-Z /&]{2,}$")  # 대문자 섹션헤더 줄
+_BANNER = re.compile(r"^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$")  # soap 단계 콜론 배너
 _JUDGE_USER = "Conversation transcript:\n\n{dialogue}\n\nNote sentence:\n\"{sent}\""
 
 
@@ -38,7 +39,7 @@ def split_sentences(note):
     out = []
     for line in str(note).splitlines():
         line = re.sub(r"[*#]+", "", line).strip().lstrip("•-* ").strip()  # 마크다운 제거
-        if not line or line.endswith(":") or _HEADER.match(line):  # 라벨/섹션헤더 줄 스킵
+        if not line or line.endswith(":") or _HEADER.match(line) or _BANNER.match(line):  # 라벨/헤더/배너 줄 스킵
             continue
         sents, line_cites = [], []
         for s in re.split(r"(?<=[.!?])\s+", line):

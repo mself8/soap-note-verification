@@ -91,6 +91,10 @@
   .ln.hedge { background:#fefce8; border-left:3px solid #facc15; padding-left:6px; }
   .ln.hedge.sel { background:#fef3c7; }
   .ln.unk { background:#f1f5f9; border:1px dashed #cbd5e1; color:#64748b; font-size:11.5px; padding:4px 8px; }
+  .ln.hallu { background:#fef2f2; border-left:3px solid #ef4444; padding-left:6px; }
+  .ln.hallu.sel { background:#fee2e2; outline-color:#ef4444; }
+  .hchip { display:inline-block; background:#fee2e2; color:#b91c1c; font-size:10px; font-weight:800;
+           border-radius:4px; padding:0 5px; margin-left:5px; white-space:nowrap; }
   .chip { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
           border-radius:9px; background:#dbeafe; color:#1d4ed8; font-size:10px; font-weight:800;
           border:1px solid #bfdbfe; margin:0 1.5px; padding:0 4px; cursor:pointer; vertical-align:1px; }
@@ -158,7 +162,7 @@
     <div class="colbody" id="ours"><div class="empty">문장에 마우스를 올리면<br>근거 발화와 <b style="color:#f59e0b">선</b>으로 연결됩니다.</div></div>
   </div>
   <div class="col" id="col-base">
-    <div class="colhead"><span class="dot" style="background:#94a3b8"></span>Baseline <span class="sub">(비교용 · 단순 프롬프트)</span></div>
+    <div class="colhead"><span class="dot" style="background:#94a3b8"></span>Baseline <span class="sub" id="base-sub">(비교용 · 맨몸 프롬프트)</span></div>
     <div class="colbody" id="base"><div class="empty">같은 대화를 baseline 프롬프트로<br>생성한 결과가 나란히 표시됩니다.</div></div>
   </div>
 </div>
@@ -167,7 +171,7 @@
   <span class="it"><span class="chip" style="cursor:default">T#</span> 근거 인용 — 올리면 원문 발화와 연결, 클릭=고정 (발화 클릭=역추적)</span>
   <span class="it"><span class="sw" style="background:#facc15"></span> 확신도 낮은 표현 보존</span>
   <span class="it"><span class="sw" style="background:#cbd5e1"></span> 미확인 — 대화에 없어 빈칸 처리</span>
-  <span class="it dim"><span class="sw" style="background:#ef4444"></span> 환각 의심 — judge 배치 판정(D5) 연동 예정</span>
+  <span class="it"><span class="sw" style="background:#ef4444"></span> 환각 의심 — judge가 문장별 근거 판정 (대화에 없는 내용)</span>
 </div>
 
 <script>
@@ -183,6 +187,8 @@ const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사
 const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
 
 let R = { ours:null, base:null, turns:null, turnsKo:null };   // 생성 결과 (+표시용 대화번역)
+let JV = { ours:null, base:null };              // judge 판정 {map:{'S:3':'hallu'|'ok'}, counts, summary}
+let STAGE_LABEL = {}, JUDGE_NAME = '';
 let LANG = 'ko';
 let pin = null, hoverA = null;                  // {type:'ln',el} | {type:'turn',id}
 
@@ -208,45 +214,81 @@ function isSubhdr(line){
   if(t === t.toUpperCase() && /[A-Za-z]/.test(t) && t.length < 40) return true;
   return KO_HDRS.includes(t);
 }
-function lineHTML(line){
+function classify(line){
   const t = line.trim();
-  if(!t) return '<div style="height:5px"></div>';
-  if(BANNER_RE.test(t)) return '';                       // 카드 헤더와 중복되는 배너줄 생략
-  if(isSubhdr(t)) return `<div class="subhdr">${esc(t)}</div>`;
-  const cites = (t.match(CITE_G) || []).join(' ');
-  const ids = [...new Set((cites.match(/\d+/g) || []).map(Number))];
+  if(!t) return {type:'blank'};
+  if(BANNER_RE.test(t)) return {type:'banner'};          // 카드 헤더와 중복되는 배너줄
+  if(isSubhdr(t)) return {type:'subhdr', text:t};
+  const ids = [...new Set(((t.match(CITE_G)||[]).join(' ').match(/\d+/g) || []).map(Number))];
   const prose = t.replace(CITE_G, '').replace(/\s{2,}/g,' ').trim();
-  if(UNK_RE.test(t)){
-    const rest = prose.replace(UNK_RE,'').trim();
-    return `<div class="ln unk">ⓘ 미확인 — 대화에 언급되지 않아 빈칸 처리${rest ? ' · '+esc(rest) : ''}</div>`;
-  }
-  const chips = ids.map(i=>`<span class="chip" data-t="${i}">T${i}</span>`).join('');
-  const attr = ids.length ? ` data-turns="${ids.join(',')}"` : '';
-  const hedge = HEDGE_RE.test(prose) ? ' hedge' : '';
-  return `<div class="ln${hedge}"${attr}>${esc(prose)} ${chips}</div>`;
+  if(UNK_RE.test(t)) return {type:'unk', rest: prose.replace(UNK_RE,'').trim()};
+  return {type:'text', prose, ids};
 }
-function renderNote(el, res, isBase){
+function lineHTML(line, mark){
+  const c = classify(line);
+  if(c.type==='blank') return '<div style="height:5px"></div>';
+  if(c.type==='banner') return '';
+  if(c.type==='subhdr') return `<div class="subhdr">${esc(c.text)}</div>`;
+  if(c.type==='unk') return `<div class="ln unk">ⓘ 미확인 — 대화에 언급되지 않아 빈칸 처리${c.rest ? ' · '+esc(c.rest) : ''}</div>`;
+  const chips = c.ids.map(i=>`<span class="chip" data-t="${i}">T${i}</span>`).join('');
+  const attr = c.ids.length ? ` data-turns="${c.ids.join(',')}"` : '';
+  let cls = HEDGE_RE.test(c.prose) ? ' hedge' : '';
+  let tail = chips;
+  if(mark==='hallu'){ cls += ' hallu'; tail += '<span class="hchip">⚠ 환각 의심</span>'; }
+  return `<div class="ln${cls}"${attr}>${esc(c.prose)} ${tail}</div>`;
+}
+
+/* judge 판정을 EN 노트 문장에 텍스트 매칭으로 부착 → (구역키:줄번호) 좌표로 저장.
+   KO 표시는 번역이 줄 수를 보존하므로 같은 좌표를 재사용(수가 다르면 그 구역은 표시 생략). */
+const norm = s => s.toLowerCase().replace(/[\[\]*#•]/g,'').replace(/\s+/g,' ').trim();
+function buildJV(res, rows){
+  const rn = rows.filter(r=>r.grounded===true||r.grounded===false)
+                 .map(r=>({n:norm(r.sent), g:r.grounded})).filter(r=>r.n.length>=8);
+  const map={}, counts={};
+  for(const s of (res.sections_en||[])){
+    const lines = s.text.split('\n'); counts[s.key]=lines.length;
+    lines.forEach((line,li)=>{
+      const c = classify(line);
+      if(c.type!=='text') return;
+      const nl = norm(c.prose); if(!nl) return;
+      const hits = rn.filter(r=>nl.includes(r.n));
+      if(hits.length) map[s.key+':'+li] = hits.some(r=>!r.g) ? 'hallu' : 'ok';
+    });
+  }
+  return {map, counts};
+}
+function renderNote(el, res, panel){
   if(!res){ el.innerHTML = '<div class="empty">결과 없음</div>'; return; }
   if(res.error){ el.innerHTML = `<div class="err">${esc(res.error)}</div>`; return; }
   const secs = (LANG==='ko' && res.sections_ko) ? res.sections_ko : res.sections_en;
   if(!secs || !secs.length){ el.innerHTML = '<div class="err">구역 없음</div>'; return; }
+  const jv = JV[panel];
   const warn = res.truncated_repeat
     ? '<div class="ln unk" style="margin-bottom:8px">⚠ 모델이 노트를 반복 생성해 첫 번째 노트만 표시합니다 (소형모델 퇴화 사례)</div>' : '';
   el.innerHTML = warn + secs.map(s=>{
     let label = s.label;
-    if(isBase && s.key==='U') label = '비구조 출력 — SOAP 구역 인식 실패 (baseline 한계)';
+    if(panel==='base' && s.key==='U') label = '비구조 출력 — SOAP 구역 인식 실패 (baseline 한계)';
+    const lines = s.text.split('\n');
+    const aligned = jv && (LANG!=='ko' || jv.counts[s.key]===lines.length);
     const body = s.text.trim()
-      ? s.text.split('\n').map(lineHTML).join('')
+      ? lines.map((line,li)=>lineHTML(line, aligned ? jv.map[s.key+':'+li] : null)).join('')
       : '<div class="ln unk">ⓘ 이 구역 출력 없음 — 모델이 생성하지 않음</div>';
     return `<div class="soap ${s.key}"><div class="soaphead"><span class="badge">${s.key}</span>${esc(label)}</div>
       <div class="soapbody">${body}</div></div>`;
   }).join('');
 }
+function updateSubs(){
+  const j = p => (JV[p] && JV[p].summary)
+    ? ` · 환각 ${Math.round(JV[p].summary.hallucination_rate*100)}% (${JV[p].summary.judged}문장 판정)` : '';
+  $('#ours-sub').textContent = `(${STAGE_LABEL[$('#stage').value] || $('#stage').value})` + j('ours');
+  $('#base-sub').textContent = '(비교용 · 맨몸 프롬프트)' + j('base');
+}
 function drawAll(){
   clearFocus();
   if(R.turns) renderChat(R.turns);
-  renderNote($('#ours'), R.ours, false);
-  renderNote($('#base'), R.base, true);
+  renderNote($('#ours'), R.ours, 'ours');
+  renderNote($('#base'), R.base, 'base');
+  updateSubs();
 }
 
 /* ── 연결선 (SVG) ── */
@@ -352,8 +394,10 @@ $('#t-en').onclick = ()=>{ LANG='en'; $('#t-en').classList.add('on'); $('#t-ko')
 
 async function loadConfig(){
   const c = await (await fetch('/config')).json();
-  $('#stage').innerHTML = c.stages.filter(s=>s!=='baseline')
-    .map(s=>`<option ${s==='soap'?'selected':''}>${s}</option>`).join('');
+  STAGE_LABEL = {}; c.stages.forEach(s=>STAGE_LABEL[s.key]=s.label);
+  JUDGE_NAME = c.judge;
+  $('#stage').innerHTML = c.stages.filter(s=>s.key!=='baseline')
+    .map(s=>`<option value="${s.key}" ${s.key==='soap'?'selected':''}>${esc(s.label)}</option>`).join('');
   $('#gen_model').innerHTML = c.models.filter(m=>m.includes('7b')||m.includes('8b'))
     .map(m=>`<option ${m==='qwen2.5-7b'?'selected':''}>${m}</option>`).join('');
   await loadPrompt();
@@ -361,7 +405,7 @@ async function loadConfig(){
 async function loadPrompt(){
   const p = await (await fetch('/prompt/'+$('#stage').value)).json();
   $('#prompt').value = p.prompt || '';
-  $('#ours-sub').textContent = `(${$('#stage').value} 단계 · 근거 인용)`;
+  updateSubs();
 }
 $('#stage').onchange = loadPrompt;
 $('#reset-prompt').onclick = loadPrompt;
@@ -390,6 +434,7 @@ $('#gen').onclick = async ()=>{
     post('/generate', {...common, stage: 'baseline'}),
   ]);
   R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null, turnsKo: null };
+  JV = { ours:null, base:null };
   if(turnsKoP) turnsKoP.then(r=>{
     if(r && r.turns_ko && r.turns_ko.length){
       R.turnsKo = Object.fromEntries(r.turns_ko.map(t=>[t.turn_id, t.text_ko]));
@@ -401,12 +446,28 @@ $('#gen').onclick = async ()=>{
   $('#t-ko').classList.toggle('on', LANG==='ko'); $('#t-en').classList.toggle('on', LANG==='en');
   drawAll();
   const ms = v => v==null ? '—' : (v/1000).toFixed(1)+'s';
-  $('#status').innerHTML = (ours.error||base.error) ? '<span style="color:#b91c1c">일부 실패 — 패널 확인</span>'
-    : `개선판 <b>${ms(ours.gen_ms)}</b> · baseline <b>${ms(base.gen_ms)}</b>` + (tr ? ` · 번역 <b>${ms((ours.tr_ms||0)+(base.tr_ms||0))}</b>` : '');
+  $('#status').innerHTML = ((ours.error||base.error) ? '<span style="color:#b91c1c">일부 실패 — 패널 확인</span>'
+    : `개선판 <b>${ms(ours.gen_ms)}</b> · baseline <b>${ms(base.gen_ms)}</b>` + (tr ? ` · 번역 <b>${ms((ours.tr_ms||0)+(base.tr_ms||0))}</b>` : ''))
+    + ' <span id="jstat"></span>';
   if(!ours.error && !base.error){
     $('#drawer').classList.add('closed');
     $('#toggle-drawer').textContent = '▸ 입력·프롬프트';
   }
+  // 환각 판정(judge) — 노트가 뜬 뒤 비동기로 도착하는 대로 빨간 표시
+  const jq = [];
+  if(!ours.error && ours.note_en) jq.push(['ours', ours]);
+  if(!base.error && base.note_en) jq.push(['base', base]);
+  let jleft = jq.length;
+  if(jleft) $('#jstat').textContent = `· 환각 판정 중 (judge=${JUDGE_NAME})…`;
+  jq.forEach(([panel, res])=>{
+    post('/judge_note', {dialogue: dlg, note: res.note_en}).then(r=>{
+      jleft--;
+      if(r && r.rows){ JV[panel] = buildJV(res, r.rows); JV[panel].summary = r.summary; }
+      renderNote($('#'+panel), res, panel); updateSubs(); refresh();
+      const el = $('#jstat');
+      if(el && jleft<=0) el.textContent = (r && r.error) ? '· 판정 실패: '+r.error : `· 환각 판정 완료 (judge=${JUDGE_NAME})`;
+    });
+  });
   $('#gen').disabled = false;
 };
 
