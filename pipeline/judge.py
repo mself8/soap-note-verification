@@ -29,22 +29,41 @@ _JUDGE_USER = "Conversation transcript:\n\n{dialogue}\n\nNote sentence:\n\"{sent
 
 
 def split_sentences(note):
-    """노트 → 판정 대상 문장 리스트. 헤더·라벨줄·마크다운·빈줄 제외, 불릿·문장 유지."""
+    """노트 → 판정 대상 문장 리스트. 헤더·라벨줄·마크다운·빈줄 제외, 불릿·문장 유지.
+
+    문단(줄) 끝에 몰아 단 인용 블록은 분리 시 "인용만 남는 프래그먼트"가 되므로,
+    문장으로 내보내지 않고 그 줄의 실제 문장들에 재부착한다(문단 인용 = 문단 전체의 근거).
+    인용만 있는 단독 줄은 직전 문장에 부착한다.
+    """
     out = []
     for line in str(note).splitlines():
         line = re.sub(r"[*#]+", "", line).strip().lstrip("•-* ").strip()  # 마크다운 제거
         if not line or line.endswith(":") or _HEADER.match(line):  # 라벨/섹션헤더 줄 스킵
             continue
+        sents, line_cites = [], []
         for s in re.split(r"(?<=[.!?])\s+", line):
             s = s.strip()
-            if len(s) >= 8 and re.search(r"[A-Za-z]", s):  # 실제 문장만
-                out.append(s)
+            clean = _CITE_BLOCK.sub("", s).strip()
+            if not re.search(r"[A-Za-z]", clean):  # 인용 블록만 남는 프래그먼트
+                line_cites += _CITE_BLOCK.findall(s)
+                continue
+            if len(clean) >= 8:  # 실제 문장만
+                sents.append(s)
+        if line_cites:
+            tail = " " + " ".join(line_cites)
+            if sents:
+                sents = [s + tail for s in sents]
+            elif out:  # 인용 단독 줄 → 직전 문장에 부착
+                out[-1] += tail
+        out.extend(sents)
     return out
 
 
 def cited_turns(sent):
-    block = _CITE_BLOCK.search(sent)
-    return [int(x) for x in _CITE_TURN.findall(block.group(0))] if block else []
+    turns = []
+    for block in _CITE_BLOCK.findall(sent):
+        turns += [int(x) for x in _CITE_TURN.findall(block)]
+    return sorted(set(turns))
 
 
 def parse_verdict(text):
