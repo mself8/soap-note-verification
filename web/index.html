@@ -199,10 +199,11 @@ function renderChat(turns){
     const sp = SPK[t.speaker] || {ko:t.speaker, ini:'?'};
     const cls = SPK[t.speaker] ? t.speaker : 'other';
     const txt = (useKo && R.turnsKo[t.turn_id]) || t.text;
+    const tip = (useKo && txt !== t.text) ? ` title="원문: ${esc(t.text)}"` : '';
     return `<div class="turn ${cls}" id="bub-${t.turn_id}" data-t="${t.turn_id}">
       <div class="avatar">${esc(sp.ini)}</div>
       <div class="bubwrap"><div class="meta">${esc(sp.ko)} · T${t.turn_id}</div>
-      <div class="bubble">${esc(txt)}</div></div></div>`;
+      <div class="bubble"${tip}>${esc(txt)}</div></div></div>`;
   }).join('');
   $('#chat-sub').textContent = `${turns.length}턴` + (useKo ? ' · 한글 표시 (모델 입력은 원문)' : '');
 }

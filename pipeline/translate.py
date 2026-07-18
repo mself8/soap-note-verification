@@ -101,15 +101,41 @@ def translate_note(model, note):
     return "\n".join(out)
 
 
+# 백채널(맞장구)은 사전으로 — 초단문을 LLM에 주면 임상 서사를 창작하는 환각 실측(D2N068 T5 "sure ."→혈압 서사)
+_BACKCHANNEL = {
+    "mm-hmm": "음, 네.", "mmhmm": "음, 네.", "uh-huh": "네.", "hmm": "음…", "mm": "음.",
+    "okay": "알겠어요.", "ok": "네.", "yeah": "네.", "yes": "네.", "yep": "네.", "sure": "네, 그럼요.",
+    "no": "아니요.", "nope": "아니요.", "right": "맞아요.", "all right": "알겠어요.", "alright": "알겠어요.",
+    "good": "좋아요.", "great": "좋네요.", "thank you": "감사합니다.", "thanks": "감사합니다.",
+    "bye": "안녕히 계세요.", "good morning": "안녕하세요.", "hi": "안녕하세요.", "hello": "안녕하세요.",
+}
+_REPEAT = re.compile(r"(\S{2,})(?:\s+\1){5,}")  # 같은 토큰 6회+ 연속 반복(퇴화 루프)
+
+# 대화 발화 전용 지시문 — TR_SYS(임상문서용)를 일상 대화에 쓰면 내용을 지어내는 환각 실측(T2 심장마비 창작)
+TR_TURN_SYS = ("You translate ONE utterance from a doctor-patient conversation into Korean. "
+               "Output ONLY the natural spoken Korean translation (polite 존댓말), nothing else. "
+               "Do NOT add, infer, or invent ANY information that is not in the utterance. "
+               "Absolutely NO Chinese characters. Keep person names and drug names as-is.")
+
+
 def translate_texts(model, texts, workers=12):
-    """짧은 텍스트 목록(대화 발화 등) 일괄 한글 번역 — 표시용. 실패 시 원문 유지."""
+    """짧은 텍스트 목록(대화 발화 등) 일괄 한글 번역 — 표시용. 실패·폭주 시 원문 유지."""
     def _tr(text):
-        if not text.strip():
+        t = text.strip()
+        if not t:
+            return text
+        key = re.sub(r"[^a-z\- ]", "", t.lower()).strip()
+        if key in _BACKCHANNEL:
+            return _BACKCHANNEL[key]
+        if len(t) < 12:  # 사전에 없는 초단문 — 환각 위험 > 번역 가치, 원문 유지
             return text
         try:
-            return clients.chat(model, TR_SYS, text, temperature=0.3, max_tokens=400).strip()
+            ko = clients.chat(model, TR_TURN_SYS, t, temperature=0.3, max_tokens=400).strip()
         except Exception:  # noqa: BLE001
             return text
+        if len(ko) > max(60, 4 * len(t)) or _REPEAT.search(ko):  # 창작(과대출력)·반복 루프 → 원문 유지
+            return text
+        return ko
     with ThreadPoolExecutor(max_workers=workers) as ex:
         return list(ex.map(_tr, texts))
 
