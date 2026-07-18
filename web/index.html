@@ -192,9 +192,10 @@ const BANNER_RE = /^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$/;
 const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
 const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
 
-let R = { ours:null, base:null, turns:null, turnsKo:null };   // 생성 결과 (+표시용 대화번역)
+let R = { ours:null, base:null, turns:null, turnsKo:null, stageKey:null };   // 생성 결과 (+표시용 대화번역)
 let JV = { ours:null, base:null };              // judge 판정 {map:{'S:3':'hallu'|'ok'}, counts, summary}
 let STAGE_LABEL = {}, JUDGE_NAME = '';
+let RUN = 0;                                    // 재생성 시 이전 실행의 늦은 응답(judge·번역) 폐기용 토큰
 let LANG = 'ko';
 let pin = null, hoverA = null;                  // {type:'ln',el} | {type:'turn',id}
 
@@ -287,7 +288,8 @@ function renderNote(el, res, panel){
 function updateSubs(){
   const j = p => (JV[p] && JV[p].summary)
     ? ` · 환각 ${Math.round(JV[p].summary.hallucination_rate*100)}% (${JV[p].summary.judged}문장 판정)` : '';
-  $('#ours-sub').textContent = `(${STAGE_LABEL[$('#stage').value] || $('#stage').value})` + j('ours');
+  const key = R.stageKey || $('#stage').value;   // 결과가 있으면 생성 시점의 단계로 표기(드롭다운 변경과 무관)
+  $('#ours-sub').textContent = `(${STAGE_LABEL[key] || key})` + j('ours');
   $('#base-sub').textContent = '(비교용 · 맨몸 프롬프트)' + j('base');
 }
 function drawAll(){
@@ -427,8 +429,10 @@ const skeleton = n => Array.from({length:n},(_,i)=>`<div class="skl" style="widt
 $('#gen').onclick = async ()=>{
   const dlg = $('#dialogue').value;
   if(!dlg.trim()){ $('#status').innerHTML = '<span style="color:#b91c1c">대화를 입력하세요</span>'; return; }
+  const runId = ++RUN;
   clearFocus();
   const tr = $('#translate').checked;
+  const stageKey = $('#stage').value;
   const common = { dialogue: dlg, gen_model: $('#gen_model').value, translate: tr };
   $('#gen').disabled = true;
   $('#status').textContent = tr ? '생성 중 (개선판+baseline 병렬, 번역 포함)…' : '생성 중 (개선판+baseline 병렬)…';
@@ -437,12 +441,14 @@ $('#gen').onclick = async ()=>{
       body: JSON.stringify(body)}).then(r=>r.json()).catch(e=>({error:String(e)}));
   const turnsKoP = tr ? post('/translate_turns', {dialogue: dlg}) : null;   // 표시용 대화번역 (병렬)
   const [ours, base] = await Promise.all([
-    post('/generate', {...common, stage: $('#stage').value, custom_prompt: $('#prompt').value}),
+    post('/generate', {...common, stage: stageKey, custom_prompt: $('#prompt').value}),
     post('/generate', {...common, stage: 'baseline'}),
   ]);
-  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null, turnsKo: null };
+  if(runId !== RUN) return;   // 그 사이 새 생성이 시작됨 — 이 결과는 폐기
+  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null, turnsKo: null, stageKey };
   JV = { ours:null, base:null };
   if(turnsKoP) turnsKoP.then(r=>{
+    if(runId !== RUN) return;
     if(r && r.turns_ko && r.turns_ko.length){
       R.turnsKo = Object.fromEntries(r.turns_ko.map(t=>[t.turn_id, t.text_ko]));
       if(LANG==='ko' && R.turns){ renderChat(R.turns); refresh(); }
@@ -468,6 +474,7 @@ $('#gen').onclick = async ()=>{
   if(jleft) $('#jstat').textContent = `· 환각 판정 중 (judge=${JUDGE_NAME})…`;
   jq.forEach(([panel, res])=>{
     post('/judge_note', {dialogue: dlg, note: res.note_en}).then(r=>{
+      if(runId !== RUN) return;   // 이전 실행의 늦은 판정 — 폐기
       jleft--;
       if(r && r.rows){ JV[panel] = buildJV(res, r.rows); JV[panel].summary = r.summary; }
       renderNote($('#'+panel), res, panel); updateSubs(); refresh();
