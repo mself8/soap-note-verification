@@ -75,7 +75,7 @@
 
     <div class="btnrow">
       <button id="gen">생성</button>
-      <span class="chk"><input type="checkbox" id="translate"><label for="translate" style="margin:0">한글 번역(Llama)</label></span>
+      <span class="chk"><input type="checkbox" id="translate" checked><label for="translate" style="margin:0">한글 번역(Llama)</label></span>
     </div>
   </div>
 
@@ -161,7 +161,8 @@ $('#gen').onclick = async ()=>{
     if(r.tr_ms!=null) st += ` · 번역 <b>${r.tr_ms}ms</b>`;
     $('#status').innerHTML = st;
     if(r.sections_ko){
-      $('#lang-toggle').innerHTML = `<span style="font-size:12px;color:#5a6270">언어</span><span class="toggle"><button id="t-en" class="on">EN</button><button id="t-ko">한글</button></span>`;
+      LANG = 'ko';
+      $('#lang-toggle').innerHTML = `<span style="font-size:12px;color:#5a6270">언어</span><span class="toggle"><button id="t-en">EN</button><button id="t-ko" class="on">한글</button></span>`;
       $('#t-en').onclick = ()=>{LANG='en'; $('#t-en').classList.add('on'); $('#t-ko').classList.remove('on'); draw();};
       $('#t-ko').onclick = ()=>{LANG='ko'; $('#t-ko').classList.add('on'); $('#t-en').classList.remove('on'); draw();};
     }
