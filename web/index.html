@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOAP 플레이그라운드</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family:'Noto Sans KR',system-ui,sans-serif; margin:0; background:#f4f5f7; color:#1a1a1a; }
+  header { background:#1F3864; color:#fff; padding:12px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  header .note { font-size:12px; color:#c9d4ec; margin-top:2px; }
+  .wrap { display:grid; grid-template-columns:minmax(360px,1fr) minmax(420px,1.3fr); gap:14px; padding:14px; align-items:start; }
+  @media(max-width:900px){ .wrap{ grid-template-columns:1fr; } }
+  .card { background:#fff; border:1px solid #e2e5ea; border-radius:10px; padding:12px; }
+  label { font-size:12px; font-weight:600; color:#334; display:block; margin:8px 0 3px; }
+  textarea, select, input { font-family:inherit; }
+  textarea { width:100%; border:1px solid #cdd2da; border-radius:7px; padding:8px; font-size:12.5px; resize:vertical; }
+  #dialogue { min-height:150px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; }
+  #prompt { min-height:230px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; font-size:11.5px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row > div { flex:1; min-width:120px; }
+  select { width:100%; padding:6px; border:1px solid #cdd2da; border-radius:7px; font-size:12.5px; }
+  button { background:#1F3864; color:#fff; border:0; border-radius:7px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  button.sec { background:#eef0f3; color:#334; padding:5px 10px; font-size:11.5px; font-weight:500; }
+  button:disabled { opacity:.5; cursor:default; }
+  .btnrow { display:flex; gap:8px; align-items:center; margin-top:10px; }
+  .chk { display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:500; color:#334; }
+  .chk input { width:auto; }
+  .status { font-size:12px; color:#5a6270; margin-bottom:8px; }
+  .status b { color:#1F3864; }
+  .toggle { display:inline-flex; border:1px solid #cdd2da; border-radius:7px; overflow:hidden; margin-left:8px; }
+  .toggle button { background:#fff; color:#334; padding:3px 12px; font-weight:600; font-size:12px; border-radius:0; }
+  .toggle button.on { background:#1F3864; color:#fff; }
+  .soap { border:1px solid #eceef2; border-radius:8px; margin:0 0 8px; overflow:hidden; }
+  .soaphead { font-weight:800; font-size:12px; padding:5px 10px; }
+  .badge { display:inline-block; min-width:22px; text-align:center; color:#fff; font-weight:900; font-size:11px; border-radius:5px; padding:1px 5px; margin-right:7px; }
+  .S .soaphead{background:#eff6ff;color:#1e40af} .S .badge{background:#2563eb}
+  .O .soaphead{background:#ecfdf5;color:#065f46} .O .badge{background:#059669}
+  .A .soaphead{background:#fffbeb;color:#92400e} .A .badge{background:#d97706}
+  .P .soaphead{background:#f5f3ff;color:#5b21b6} .P .badge{background:#7c3aed}
+  .AP .soaphead{background:#f1f5f9;color:#334155} .AP .badge{background:#475569}
+  .U .soaphead{background:#f8fafc;color:#64748b} .U .badge{background:#94a3b8}
+  .soapbody { padding:6px 10px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; font-size:12px; }
+  .subhdr { font-weight:700; font-size:11px; color:#6b7280; text-transform:uppercase; margin:6px 0 2px; }
+  .ln { white-space:pre-wrap; word-break:break-word; padding:1px 0; }
+  .cite { background:#fde68a; color:#7c2d12; border-radius:3px; padding:0 3px; font-size:11px; }
+  .err { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:8px 10px; border-radius:7px; font-size:12.5px; }
+  details { margin-top:10px; } summary { cursor:pointer; font-size:12px; color:#334; font-weight:600; }
+  pre.dia { max-height:260px; overflow:auto; background:#fbfbfd; border:1px solid #eceef2; border-radius:7px; padding:8px; font-size:11px; white-space:pre-wrap; }
+  .hint { font-size:11px; color:#8a90a0; margin-top:2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SOAP 플레이그라운드</h1>
+  <div class="note">진료대화 입력 → SOAP 생성(+한글). 프롬프트를 편집해 라이브 A/B. ⚠️ 단일 예시 확인용 — 프롬프트 승패 판정은 배치 평가(pipeline.metrics/judge)가 진실.</div>
+</header>
+
+<div class="wrap">
+  <!-- 입력 -->
+  <div class="card">
+    <label>진료 대화 <button class="sec" id="load-sample" style="float:right">샘플 불러오기</button></label>
+    <textarea id="dialogue" placeholder="[doctor] hi, how are you?&#10;[patient] not great..."></textarea>
+    <div class="hint">형식: <code>[doctor] ...</code> / <code>[patient] ...</code> (또는 <code>Doctor: ...</code>)</div>
+
+    <div class="row" style="margin-top:8px">
+      <div><label>단계</label><select id="stage"></select></div>
+      <div><label>생성 모델</label><select id="gen_model"></select></div>
+    </div>
+
+    <label>프롬프트 (편집 가능) <button class="sec" id="reset-prompt" style="float:right">단계 기본값으로 초기화</button></label>
+    <textarea id="prompt"></textarea>
+    <div class="hint" id="verify-hint"></div>
+
+    <div class="btnrow">
+      <button id="gen">생성</button>
+      <span class="chk"><input type="checkbox" id="translate"><label for="translate" style="margin:0">한글 번역(Llama)</label></span>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="card">
+    <div class="status" id="status">결과가 여기 표시됩니다.</div>
+    <div id="lang-toggle"></div>
+    <div id="result"></div>
+    <details id="dia-wrap" style="display:none">
+      <summary>모델이 본 번호형식 대화 (근거 [T#] 대조용)</summary>
+      <pre class="dia" id="dia"></pre>
+    </details>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let LAST = null, LANG = 'en';
+
+function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+const CITE = /\[T\d[\dT,\s]*\]/g;
+const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
+
+function isSubhdr(line){
+  const t = line.trim();
+  if(!t || CITE.test(t)) return false;
+  if(t === t.toUpperCase() && /[A-Za-z]/.test(t) && t.length < 40) return true;   // 영어 대문자 헤더
+  if(KO_HDRS.includes(t)) return true;                                            // 한글 세부헤더
+  return false;
+}
+function renderBody(text){
+  return text.split('\n').map(line=>{
+    if(!line.trim()) return '<div style="height:5px"></div>';
+    if(isSubhdr(line)) return `<div class="subhdr">${esc(line.trim())}</div>`;
+    const html = esc(line).replace(CITE, m=>`<span class="cite">${m}</span>`);
+    return `<div class="ln">${html}</div>`;
+  }).join('');
+}
+function renderSections(secs){
+  if(!secs || !secs.length) return '<div class="err">구역 없음</div>';
+  return secs.map(s=>`<div class="soap ${s.key}"><div class="soaphead"><span class="badge">${s.key}</span>${esc(s.label)}</div><div class="soapbody">${renderBody(s.text)}</div></div>`).join('');
+}
+function draw(){
+  if(!LAST) return;
+  const secs = LANG==='ko' ? LAST.sections_ko : LAST.sections_en;
+  $('#result').innerHTML = renderSections(secs);
+}
+
+async function loadConfig(){
+  const c = await (await fetch('/config')).json();
+  $('#stage').innerHTML = c.stages.map(s=>`<option ${s==='soap'?'selected':''}>${s}</option>`).join('');
+  $('#gen_model').innerHTML = c.models.filter(m=>m.includes('7b')||m.includes('8b')).map(m=>`<option ${m==='qwen2.5-7b'?'selected':''}>${m}</option>`).join('');
+  await loadPrompt();
+}
+async function loadPrompt(){
+  const st = $('#stage').value;
+  const p = await (await fetch('/prompt/'+st)).json();
+  $('#prompt').value = p.prompt || '';
+  $('#verify-hint').textContent = p.self_verify ? '이 단계는 자기검증 2차 패스가 붙습니다(프롬프트는 1차 패스).' : '';
+}
+
+$('#stage').onchange = loadPrompt;
+$('#reset-prompt').onclick = loadPrompt;
+$('#load-sample').onclick = async ()=>{
+  const s = await (await fetch('/sample')).json();
+  $('#dialogue').value = s.dialogue;
+};
+$('#gen').onclick = async ()=>{
+  const body = {
+    dialogue: $('#dialogue').value,
+    stage: $('#stage').value,
+    custom_prompt: $('#prompt').value,
+    gen_model: $('#gen_model').value,
+    translate: $('#translate').checked,
+  };
+  if(!body.dialogue.trim()){ $('#status').innerHTML = '<span class="err">대화를 입력하세요</span>'; return; }
+  $('#gen').disabled = true; $('#status').textContent = '생성 중…'; $('#result').innerHTML=''; $('#lang-toggle').innerHTML='';
+  try {
+    const r = await (await fetch('/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+    if(r.error){ $('#status').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#gen').disabled=false; return; }
+    LAST = r; LANG = 'en';
+    let st = `<b>${r.n_turns}</b>턴 · 생성 <b>${r.gen_ms}ms</b>`;
+    if(r.tr_ms!=null) st += ` · 번역 <b>${r.tr_ms}ms</b>`;
+    $('#status').innerHTML = st;
+    if(r.sections_ko){
+      $('#lang-toggle').innerHTML = `<span style="font-size:12px;color:#5a6270">언어</span><span class="toggle"><button id="t-en" class="on">EN</button><button id="t-ko">한글</button></span>`;
+      $('#t-en').onclick = ()=>{LANG='en'; $('#t-en').classList.add('on'); $('#t-ko').classList.remove('on'); draw();};
+      $('#t-ko').onclick = ()=>{LANG='ko'; $('#t-ko').classList.add('on'); $('#t-en').classList.remove('on'); draw();};
+    }
+    draw();
+    $('#dia').textContent = r.turns_fmt; $('#dia-wrap').style.display='block';
+  } catch(e){ $('#status').innerHTML = `<span class="err">요청 실패: ${esc(String(e))}</span>`; }
+  $('#gen').disabled = false;
+};
+
+loadConfig();
+</script>
+</body>
+</html>
