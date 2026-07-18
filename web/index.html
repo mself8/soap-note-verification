@@ -3,35 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOAP 플레이그라운드</title>
+<title>SOAP Note Verification System</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family:'Noto Sans KR',system-ui,sans-serif; margin:0; background:#f4f5f7; color:#1a1a1a; }
-  header { background:#1F3864; color:#fff; padding:12px 20px; }
-  header h1 { margin:0; font-size:18px; }
-  header .note { font-size:12px; color:#c9d4ec; margin-top:2px; }
-  .wrap { display:grid; grid-template-columns:minmax(360px,1fr) minmax(420px,1.3fr); gap:14px; padding:14px; align-items:start; }
-  @media(max-width:900px){ .wrap{ grid-template-columns:1fr; } }
-  .card { background:#fff; border:1px solid #e2e5ea; border-radius:10px; padding:12px; }
-  label { font-size:12px; font-weight:600; color:#334; display:block; margin:8px 0 3px; }
-  textarea, select, input { font-family:inherit; }
-  textarea { width:100%; border:1px solid #cdd2da; border-radius:7px; padding:8px; font-size:12.5px; resize:vertical; }
-  #dialogue { min-height:150px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; }
-  #prompt { min-height:230px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; font-size:11.5px; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .row > div { flex:1; min-width:120px; }
-  select { width:100%; padding:6px; border:1px solid #cdd2da; border-radius:7px; font-size:12.5px; }
-  button { background:#1F3864; color:#fff; border:0; border-radius:7px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; }
-  button.sec { background:#eef0f3; color:#334; padding:5px 10px; font-size:11.5px; font-weight:500; }
+  html, body { height: 100%; }
+  body { font-family:'Noto Sans KR',system-ui,sans-serif; margin:0; background:#f1f3f7; color:#1a1a1a;
+         display:flex; flex-direction:column; overflow:hidden; }
+
+  /* ── 헤더 + 컨트롤 ── */
+  header { background:#1F3864; color:#fff; padding:9px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:16px; white-space:nowrap; }
+  header .note { font-size:11px; color:#c9d4ec; }
+  #ctrl { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 16px; background:#fff; border-bottom:1px solid #e2e5ea; }
+  #ctrl label { font-size:12px; font-weight:600; color:#334; }
+  select { padding:5px 7px; border:1px solid #cdd2da; border-radius:7px; font-size:12.5px; font-family:inherit; }
+  button { background:#1F3864; color:#fff; border:0; border-radius:7px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  button.sec { background:#eef0f3; color:#334; font-weight:500; font-size:12px; padding:6px 10px; }
   button:disabled { opacity:.5; cursor:default; }
-  .btnrow { display:flex; gap:8px; align-items:center; margin-top:10px; }
-  .chk { display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:500; color:#334; }
-  .chk input { width:auto; }
-  .status { font-size:12px; color:#5a6270; margin-bottom:8px; }
-  .status b { color:#1F3864; }
-  .toggle { display:inline-flex; border:1px solid #cdd2da; border-radius:7px; overflow:hidden; margin-left:8px; }
-  .toggle button { background:#fff; color:#334; padding:3px 12px; font-weight:600; font-size:12px; border-radius:0; }
+  .chk { display:flex; align-items:center; gap:4px; font-size:12.5px; font-weight:500; color:#334; }
+  #status { font-size:12px; color:#5a6270; margin-left:auto; }
+  #status b { color:#1F3864; }
+  .toggle { display:inline-flex; border:1px solid #cdd2da; border-radius:7px; overflow:hidden; }
+  .toggle button { background:#fff; color:#334; padding:4px 12px; font-weight:600; font-size:12px; border-radius:0; }
   .toggle button.on { background:#1F3864; color:#fff; }
+
+  /* ── 입력 드로어 ── */
+  #drawer { background:#fff; border-bottom:1px solid #e2e5ea; padding:10px 16px; display:grid;
+            grid-template-columns:1fr 1fr; gap:12px; }
+  #drawer.closed { display:none; }
+  #drawer label { font-size:12px; font-weight:600; color:#334; display:block; margin-bottom:3px; }
+  textarea { width:100%; border:1px solid #cdd2da; border-radius:7px; padding:8px;
+             font-family:'Nanum Gothic Coding',ui-monospace,monospace; font-size:12px; resize:vertical; }
+  #dialogue { min-height:130px; }
+  #prompt { min-height:130px; font-size:11px; }
+  .hint { font-size:11px; color:#8a90a0; margin-top:2px; }
+
+  /* ── 3분할 보드 ── */
+  #board { flex:1; min-height:0; position:relative; display:grid;
+           grid-template-columns:1.05fr 1.2fr 1fr; gap:12px; padding:12px 16px; }
+  #wires { position:absolute; inset:0; pointer-events:none; z-index:6; }
+  .col { background:#fff; border:1px solid #e2e5ea; border-radius:10px; display:flex; flex-direction:column; min-height:0; }
+  .colhead { padding:8px 12px; font-size:12.5px; font-weight:800; border-bottom:1px solid #eceef2;
+             display:flex; align-items:center; gap:7px; border-radius:10px 10px 0 0; }
+  .colhead .sub { font-weight:500; font-size:11px; color:#8a90a0; }
+  #col-chat .colhead { background:#f8fafc; color:#0f172a; }
+  #col-ours .colhead { background:#eff6ff; color:#1e40af; }
+  #col-base .colhead { background:#f8fafc; color:#475569; }
+  .dot { width:8px; height:8px; border-radius:50%; }
+  .colbody { flex:1; min-height:0; overflow-y:auto; padding:10px 12px; position:relative; }
+  .empty { color:#9aa1b0; font-size:12px; text-align:center; margin-top:36px; line-height:1.8; }
+
+  /* ── 채팅 버블 ── */
+  .turn { display:flex; gap:7px; margin:7px 0; align-items:flex-end; }
+  .turn.doctor { flex-direction:row-reverse; }
+  .avatar { width:26px; height:26px; border-radius:50%; flex:none; display:flex; align-items:center;
+            justify-content:center; font-size:11px; font-weight:800; color:#fff; }
+  .turn.patient .avatar { background:#94a3b8; }
+  .turn.doctor .avatar { background:#2563eb; }
+  .turn.other .avatar { background:#a78bfa; }
+  .bubwrap { max-width:82%; display:flex; flex-direction:column; }
+  .turn.doctor .bubwrap { align-items:flex-end; }
+  .meta { font-size:10px; color:#8a90a0; margin:0 4px 2px; }
+  .bubble { padding:7px 10px; border-radius:12px; font-size:12.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+  .turn.patient .bubble { background:#f1f5f9; border:1px solid #e2e8f0; border-bottom-left-radius:3px; }
+  .turn.doctor .bubble { background:#2563eb; color:#fff; border-bottom-right-radius:3px; }
+  .turn.other .bubble { background:#f5f3ff; border:1px solid #ddd6fe; }
+  .turn.lit .bubble { outline:2px solid #f59e0b; box-shadow:0 0 0 4px #fde68a66; }
+  .turn.lit.patient .bubble { background:#fef9e7; }
+  .turn .bubble { cursor:pointer; }
+
+  /* ── SOAP 카드 ── */
   .soap { border:1px solid #eceef2; border-radius:8px; margin:0 0 8px; overflow:hidden; }
   .soaphead { font-weight:800; font-size:12px; padding:5px 10px; }
   .badge { display:inline-block; min-width:22px; text-align:center; color:#fff; font-weight:900; font-size:11px; border-radius:5px; padding:1px 5px; margin-right:7px; }
@@ -41,134 +82,319 @@
   .P .soaphead{background:#f5f3ff;color:#5b21b6} .P .badge{background:#7c3aed}
   .AP .soaphead{background:#f1f5f9;color:#334155} .AP .badge{background:#475569}
   .U .soaphead{background:#f8fafc;color:#64748b} .U .badge{background:#94a3b8}
-  .soapbody { padding:6px 10px; font-family:'Nanum Gothic Coding',ui-monospace,monospace; font-size:12px; }
-  .subhdr { font-weight:700; font-size:11px; color:#6b7280; text-transform:uppercase; margin:6px 0 2px; }
-  .ln { white-space:pre-wrap; word-break:break-word; padding:1px 0; }
-  .cite { background:#fde68a; color:#7c2d12; border-radius:3px; padding:0 3px; font-size:11px; }
+  .soapbody { padding:6px 10px; font-size:12.3px; }
+  .subhdr { font-weight:700; font-size:10.5px; color:#6b7280; text-transform:uppercase; letter-spacing:.03em; margin:7px 0 2px; }
+  .ln { white-space:pre-wrap; word-break:break-word; padding:2px 4px; margin:1px 0; border-radius:5px; line-height:1.55; }
+  .ln[data-turns] { cursor:pointer; }
+  .ln[data-turns]:hover { background:#fffbeb; }
+  .ln.sel { background:#fef3c7; outline:1.5px solid #f59e0b; }
+  .ln.hedge { background:#fefce8; border-left:3px solid #facc15; padding-left:6px; }
+  .ln.hedge.sel { background:#fef3c7; }
+  .ln.unk { background:#f1f5f9; border:1px dashed #cbd5e1; color:#64748b; font-size:11.5px; padding:4px 8px; }
+  .chip { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+          border-radius:9px; background:#dbeafe; color:#1d4ed8; font-size:10px; font-weight:800;
+          border:1px solid #bfdbfe; margin:0 1.5px; padding:0 4px; cursor:pointer; vertical-align:1px; }
+  .chip:hover { background:#2563eb; color:#fff; }
   .err { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:8px 10px; border-radius:7px; font-size:12.5px; }
-  details { margin-top:10px; } summary { cursor:pointer; font-size:12px; color:#334; font-weight:600; }
-  pre.dia { max-height:260px; overflow:auto; background:#fbfbfd; border:1px solid #eceef2; border-radius:7px; padding:8px; font-size:11px; white-space:pre-wrap; }
-  .hint { font-size:11px; color:#8a90a0; margin-top:2px; }
+  .skl { height:11px; border-radius:5px; margin:9px 6px; background:linear-gradient(90deg,#eef0f4 25%,#f8f9fb 50%,#eef0f4 75%); background-size:200% 100%; animation:sh 1.2s infinite; }
+  @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* ── 범례 ── */
+  #legend { display:flex; gap:16px; flex-wrap:wrap; align-items:center; padding:7px 16px; background:#fff;
+            border-top:1px solid #e2e5ea; font-size:11.5px; color:#475569; }
+  #legend .it { display:flex; align-items:center; gap:5px; }
+  #legend .sw { width:10px; height:10px; border-radius:3px; }
+  #legend .dim { opacity:.45; }
+
+  @media (max-width: 980px) {
+    body { overflow:auto; }
+    #board { grid-template-columns:1fr; }
+    .col { height:46vh; }
+    #wires { display:none; }
+    #drawer { grid-template-columns:1fr; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>SOAP 플레이그라운드</h1>
-  <div class="note">진료대화 입력 → SOAP 생성(+한글). 프롬프트를 편집해 라이브 A/B. ⚠️ 단일 예시 확인용 — 프롬프트 승패 판정은 배치 평가(pipeline.metrics/judge)가 진실.</div>
+  <h1>SOAP Note Verification System</h1>
+  <div class="note">진료대화 → SOAP 생성 + 근거 추적 · ⚠️ 데모/정성확인용 — 판정의 진실은 배치 평가(pipeline.metrics/judge)</div>
 </header>
 
-<div class="wrap">
-  <!-- 입력 -->
-  <div class="card">
-    <label>진료 대화 <button class="sec" id="load-sample" style="float:right">샘플 불러오기</button></label>
-    <textarea id="dialogue" placeholder="[doctor] hi, how are you?&#10;[patient] not great..."></textarea>
-    <div class="hint">형식: <code>[doctor] ...</code> / <code>[patient] ...</code> (또는 <code>Doctor: ...</code>)</div>
+<div id="ctrl">
+  <button class="sec" id="toggle-drawer">▾ 입력·프롬프트</button>
+  <button class="sec" id="load-sample">샘플 불러오기</button>
+  <label>우리 단계</label><select id="stage"></select>
+  <label>모델</label><select id="gen_model"></select>
+  <span class="chk"><input type="checkbox" id="translate" checked><label for="translate">한글 번역</label></span>
+  <span class="toggle" id="lang-toggle" style="display:none">
+    <button id="t-ko" class="on">한글</button><button id="t-en">EN</button>
+  </span>
+  <button id="gen">생성</button>
+  <span id="status">대화를 입력하고 생성을 누르세요.</span>
+</div>
 
-    <div class="row" style="margin-top:8px">
-      <div><label>단계</label><select id="stage"></select></div>
-      <div><label>생성 모델</label><select id="gen_model"></select></div>
-    </div>
-
-    <label>프롬프트 (편집 가능) <button class="sec" id="reset-prompt" style="float:right">단계 기본값으로 초기화</button></label>
+<div id="drawer">
+  <div>
+    <label>진료 대화</label>
+    <textarea id="dialogue" placeholder="의사: 어디가 불편해서 오셨어요?&#10;환자: 어제부터 가슴이 좀 답답한 것 같기도 하고..."></textarea>
+    <div class="hint">형식: <code>의사: …</code>/<code>환자: …</code> 또는 <code>[doctor] …</code>/<code>Doctor: …</code></div>
+  </div>
+  <div>
+    <label>우리 단계 프롬프트 (편집해서 A/B) <button class="sec" id="reset-prompt" style="float:right;padding:2px 8px">기본값</button></label>
     <textarea id="prompt"></textarea>
-    <div class="hint" id="verify-hint"></div>
-
-    <div class="btnrow">
-      <button id="gen">생성</button>
-      <span class="chk"><input type="checkbox" id="translate" checked><label for="translate" style="margin:0">한글 번역(Llama)</label></span>
-    </div>
+    <div class="hint" id="verify-hint">baseline 쪽은 비교 기준점이라 항상 기본 프롬프트로 생성됩니다.</div>
   </div>
+</div>
 
-  <!-- 결과 -->
-  <div class="card">
-    <div class="status" id="status">결과가 여기 표시됩니다.</div>
-    <div id="lang-toggle"></div>
-    <div id="result"></div>
-    <details id="dia-wrap" style="display:none">
-      <summary>모델이 본 번호형식 대화 (근거 [T#] 대조용)</summary>
-      <pre class="dia" id="dia"></pre>
-    </details>
+<div id="board">
+  <svg id="wires"></svg>
+  <div class="col" id="col-chat">
+    <div class="colhead">진료 대화 <span class="sub" id="chat-sub"></span></div>
+    <div class="colbody" id="chat"><div class="empty">아직 대화가 없습니다.<br>샘플을 불러오거나 붙여넣은 뒤 <b>생성</b>.</div></div>
   </div>
+  <div class="col" id="col-ours">
+    <div class="colhead"><span class="dot" style="background:#2563eb"></span>개선판 SOAP <span class="sub" id="ours-sub">(우리 방식 · 근거 인용)</span></div>
+    <div class="colbody" id="ours"><div class="empty">문장에 마우스를 올리면<br>근거 발화와 <b style="color:#f59e0b">선</b>으로 연결됩니다.</div></div>
+  </div>
+  <div class="col" id="col-base">
+    <div class="colhead"><span class="dot" style="background:#94a3b8"></span>Baseline <span class="sub">(비교용 · 단순 프롬프트)</span></div>
+    <div class="colbody" id="base"><div class="empty">같은 대화를 baseline 프롬프트로<br>생성한 결과가 나란히 표시됩니다.</div></div>
+  </div>
+</div>
+
+<div id="legend">
+  <span class="it"><span class="chip" style="cursor:default">T#</span> 근거 인용 — 올리면 원문 발화와 연결, 클릭=고정 (발화 클릭=역추적)</span>
+  <span class="it"><span class="sw" style="background:#facc15"></span> 확신도 낮은 표현 보존</span>
+  <span class="it"><span class="sw" style="background:#cbd5e1"></span> 미확인 — 대화에 없어 빈칸 처리</span>
+  <span class="it dim"><span class="sw" style="background:#ef4444"></span> 환각 의심 — judge 배치 판정(D5) 연동 예정</span>
 </div>
 
 <script>
 const $ = s => document.querySelector(s);
-let LAST = null, LANG = 'en';
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function esc(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-const CITE = /\[T\d[\dT,\s]*\]/g;
+const CITE_G = /\[T\d[\dT,\s]*\]/g;                  // [T3], [T30, T33]
+const UNK_RE = /\[미확인[^\]]*\]/;
+const HEDGE_RE = /\b(likely|suspected|possibl[ey]|probable|unsure|uncertain)\b|의심|추정|가능성|불확실/i;
+const BANNER_RE = /^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$/;
 const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
+const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
 
+let R = { ours:null, base:null, turns:null };   // 생성 결과
+let LANG = 'ko';
+let pin = null, hoverA = null;                  // {type:'ln',el} | {type:'turn',id}
+
+/* ── 렌더: 채팅 ── */
+function renderChat(turns){
+  $('#chat').innerHTML = turns.map(t=>{
+    const sp = SPK[t.speaker] || {ko:t.speaker, ini:'?'};
+    const cls = SPK[t.speaker] ? t.speaker : 'other';
+    return `<div class="turn ${cls}" id="bub-${t.turn_id}" data-t="${t.turn_id}">
+      <div class="avatar">${esc(sp.ini)}</div>
+      <div class="bubwrap"><div class="meta">${esc(sp.ko)} · T${t.turn_id}</div>
+      <div class="bubble">${esc(t.text)}</div></div></div>`;
+  }).join('');
+  $('#chat-sub').textContent = `${turns.length}턴`;
+}
+
+/* ── 렌더: 노트 ── */
 function isSubhdr(line){
   const t = line.trim();
-  if(!t || CITE.test(t)) return false;
-  if(t === t.toUpperCase() && /[A-Za-z]/.test(t) && t.length < 40) return true;   // 영어 대문자 헤더
-  if(KO_HDRS.includes(t)) return true;                                            // 한글 세부헤더
-  return false;
+  if(!t || t.match(CITE_G)) return false;
+  if(t === t.toUpperCase() && /[A-Za-z]/.test(t) && t.length < 40) return true;
+  return KO_HDRS.includes(t);
 }
-function renderBody(text){
-  return text.split('\n').map(line=>{
-    if(!line.trim()) return '<div style="height:5px"></div>';
-    if(isSubhdr(line)) return `<div class="subhdr">${esc(line.trim())}</div>`;
-    const html = esc(line).replace(CITE, m=>`<span class="cite">${m}</span>`);
-    return `<div class="ln">${html}</div>`;
+function lineHTML(line){
+  const t = line.trim();
+  if(!t) return '<div style="height:5px"></div>';
+  if(BANNER_RE.test(t)) return '';                       // 카드 헤더와 중복되는 배너줄 생략
+  if(isSubhdr(t)) return `<div class="subhdr">${esc(t)}</div>`;
+  const cites = (t.match(CITE_G) || []).join(' ');
+  const ids = [...new Set((cites.match(/\d+/g) || []).map(Number))];
+  const prose = t.replace(CITE_G, '').replace(/\s{2,}/g,' ').trim();
+  if(UNK_RE.test(t)){
+    const rest = prose.replace(UNK_RE,'').trim();
+    return `<div class="ln unk">ⓘ 미확인 — 대화에 언급되지 않아 빈칸 처리${rest ? ' · '+esc(rest) : ''}</div>`;
+  }
+  const chips = ids.map(i=>`<span class="chip" data-t="${i}">T${i}</span>`).join('');
+  const attr = ids.length ? ` data-turns="${ids.join(',')}"` : '';
+  const hedge = HEDGE_RE.test(prose) ? ' hedge' : '';
+  return `<div class="ln${hedge}"${attr}>${esc(prose)} ${chips}</div>`;
+}
+function renderNote(el, res, isBase){
+  if(!res){ el.innerHTML = '<div class="empty">결과 없음</div>'; return; }
+  if(res.error){ el.innerHTML = `<div class="err">${esc(res.error)}</div>`; return; }
+  const secs = (LANG==='ko' && res.sections_ko) ? res.sections_ko : res.sections_en;
+  if(!secs || !secs.length){ el.innerHTML = '<div class="err">구역 없음</div>'; return; }
+  const warn = res.truncated_repeat
+    ? '<div class="ln unk" style="margin-bottom:8px">⚠ 모델이 노트를 반복 생성해 첫 번째 노트만 표시합니다 (소형모델 퇴화 사례)</div>' : '';
+  el.innerHTML = warn + secs.map(s=>{
+    let label = s.label;
+    if(isBase && s.key==='U') label = '비구조 출력 — SOAP 구역 인식 실패 (baseline 한계)';
+    return `<div class="soap ${s.key}"><div class="soaphead"><span class="badge">${s.key}</span>${esc(label)}</div>
+      <div class="soapbody">${s.text.split('\n').map(lineHTML).join('')}</div></div>`;
   }).join('');
 }
-function renderSections(secs){
-  if(!secs || !secs.length) return '<div class="err">구역 없음</div>';
-  return secs.map(s=>`<div class="soap ${s.key}"><div class="soaphead"><span class="badge">${s.key}</span>${esc(s.label)}</div><div class="soapbody">${renderBody(s.text)}</div></div>`).join('');
+function drawAll(){
+  clearFocus();
+  if(R.turns) renderChat(R.turns);
+  renderNote($('#ours'), R.ours, false);
+  renderNote($('#base'), R.base, true);
 }
-function draw(){
-  if(!LAST) return;
-  const secs = LANG==='ko' ? LAST.sections_ko : LAST.sections_en;
-  $('#result').innerHTML = renderSections(secs);
+
+/* ── 연결선 (SVG) ── */
+function clearFocus(){
+  pin = null; hoverA = null;
+  $('#wires').innerHTML = '';
+  $$('.turn.lit').forEach(e=>e.classList.remove('lit'));
+  $$('.ln.sel').forEach(e=>e.classList.remove('sel'));
 }
+function endpoint(rect, panel, side, bd){
+  const pr = panel.getBoundingClientRect();
+  let y = rect.top + rect.height/2, off = false;
+  if(y < pr.top+4){ y = pr.top+4; off = true; }
+  if(y > pr.bottom-4){ y = pr.bottom-4; off = true; }
+  return { x:(side==='left'?rect.left:rect.right) - bd.left, y:y - bd.top, off };
+}
+function wire(p1, p2){
+  const dx = Math.max(34, Math.abs(p1.x-p2.x)/2.2), dash = (p1.off||p2.off);
+  return `<path d="M${p1.x},${p1.y} C${p1.x-dx},${p1.y} ${p2.x+dx},${p2.y} ${p2.x},${p2.y}"
+      fill="none" stroke="#f59e0b" stroke-width="2" opacity="${dash?0.45:0.9}" ${dash?'stroke-dasharray="5 4"':''}/>` +
+    `<circle cx="${p1.x}" cy="${p1.y}" r="3" fill="#f59e0b"/><circle cx="${p2.x}" cy="${p2.y}" r="3" fill="#f59e0b"/>`;
+}
+function refresh(){
+  const a = pin || hoverA;
+  $('#wires').innerHTML = '';
+  $$('.turn.lit').forEach(e=>e.classList.remove('lit'));
+  $$('.ln.sel').forEach(e=>e.classList.remove('sel'));
+  if(!a) return;
+  const bd = $('#board').getBoundingClientRect();
+  const chatPanel = $('#chat');
+  let svg = '';
+  if(a.type === 'ln'){
+    if(!a.el.isConnected) { pin=null; return; }
+    a.el.classList.add('sel');
+    const notePanel = a.el.closest('.colbody');
+    const p1 = endpoint(a.el.getBoundingClientRect(), notePanel, 'left', bd);
+    for(const id of a.el.dataset.turns.split(',')){
+      const bub = $('#bub-'+id); if(!bub) continue;
+      bub.classList.add('lit');
+      svg += wire(p1, endpoint(bub.querySelector('.bubble').getBoundingClientRect(), chatPanel, 'right', bd));
+    }
+  } else {
+    const bub = $('#bub-'+a.id); if(!bub){ pin=null; return; }
+    bub.classList.add('lit');
+    const p2 = endpoint(bub.querySelector('.bubble').getBoundingClientRect(), chatPanel, 'right', bd);
+    for(const ln of $$('.ln[data-turns]')){
+      if(!ln.dataset.turns.split(',').includes(String(a.id))) continue;
+      ln.classList.add('sel');
+      svg += wire(endpoint(ln.getBoundingClientRect(), ln.closest('.colbody'), 'left', bd), p2);
+    }
+  }
+  $('#wires').innerHTML = svg;
+}
+function scrollChatTo(id){
+  const bub = $('#bub-'+id), body = $('#chat');
+  if(bub) body.scrollTo({ top: bub.offsetTop - body.clientHeight/3, behavior:'smooth' });
+}
+
+/* ── 상호작용 ── */
+$('#board').addEventListener('mouseover', e=>{
+  if(pin) return;
+  const ln = e.target.closest('.ln[data-turns]');
+  if(ln){ hoverA = {type:'ln', el:ln}; refresh(); }
+});
+$('#board').addEventListener('mouseout', e=>{
+  if(pin) return;
+  if(e.target.closest('.ln[data-turns]')){ hoverA = null; refresh(); }
+});
+$('#board').addEventListener('click', e=>{
+  const chip = e.target.closest('.chip[data-t]');
+  if(chip){
+    const ln = chip.closest('.ln');
+    pin = {type:'ln', el:ln}; refresh(); scrollChatTo(chip.dataset.t);
+    e.stopPropagation(); return;
+  }
+  const ln = e.target.closest('.ln[data-turns]');
+  if(ln){
+    pin = (pin && pin.type==='ln' && pin.el===ln) ? null : {type:'ln', el:ln};
+    refresh(); if(pin) scrollChatTo(ln.dataset.turns.split(',')[0]);
+    return;
+  }
+  const turn = e.target.closest('.turn[data-t]');
+  if(turn){
+    const id = Number(turn.dataset.t);
+    pin = (pin && pin.type==='turn' && pin.id===id) ? null : {type:'turn', id};
+    refresh(); return;
+  }
+  if(pin){ clearFocus(); }
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') clearFocus(); });
+for(const id of ['chat','ours','base'])
+  $('#'+id).addEventListener('scroll', ()=>requestAnimationFrame(refresh), {passive:true});
+window.addEventListener('resize', ()=>requestAnimationFrame(refresh));
+
+/* ── 컨트롤 ── */
+$('#toggle-drawer').onclick = ()=>{
+  const d = $('#drawer'); d.classList.toggle('closed');
+  $('#toggle-drawer').textContent = (d.classList.contains('closed')?'▸':'▾')+' 입력·프롬프트';
+  requestAnimationFrame(refresh);
+};
+$('#t-ko').onclick = ()=>{ LANG='ko'; $('#t-ko').classList.add('on'); $('#t-en').classList.remove('on'); drawAll(); };
+$('#t-en').onclick = ()=>{ LANG='en'; $('#t-en').classList.add('on'); $('#t-ko').classList.remove('on'); drawAll(); };
 
 async function loadConfig(){
   const c = await (await fetch('/config')).json();
-  $('#stage').innerHTML = c.stages.map(s=>`<option ${s==='soap'?'selected':''}>${s}</option>`).join('');
-  $('#gen_model').innerHTML = c.models.filter(m=>m.includes('7b')||m.includes('8b')).map(m=>`<option ${m==='qwen2.5-7b'?'selected':''}>${m}</option>`).join('');
+  $('#stage').innerHTML = c.stages.filter(s=>s!=='baseline')
+    .map(s=>`<option ${s==='soap'?'selected':''}>${s}</option>`).join('');
+  $('#gen_model').innerHTML = c.models.filter(m=>m.includes('7b')||m.includes('8b'))
+    .map(m=>`<option ${m==='qwen2.5-7b'?'selected':''}>${m}</option>`).join('');
   await loadPrompt();
 }
 async function loadPrompt(){
-  const st = $('#stage').value;
-  const p = await (await fetch('/prompt/'+st)).json();
+  const p = await (await fetch('/prompt/'+$('#stage').value)).json();
   $('#prompt').value = p.prompt || '';
-  $('#verify-hint').textContent = p.self_verify ? '이 단계는 자기검증 2차 패스가 붙습니다(프롬프트는 1차 패스).' : '';
+  $('#ours-sub').textContent = `(${$('#stage').value} 단계 · 근거 인용)`;
 }
-
 $('#stage').onchange = loadPrompt;
 $('#reset-prompt').onclick = loadPrompt;
 $('#load-sample').onclick = async ()=>{
   const s = await (await fetch('/sample')).json();
   $('#dialogue').value = s.dialogue;
+  $('#drawer').classList.remove('closed');
 };
+
+const skeleton = n => Array.from({length:n},(_,i)=>`<div class="skl" style="width:${88-(i%3)*14}%"></div>`).join('');
+
 $('#gen').onclick = async ()=>{
-  const body = {
-    dialogue: $('#dialogue').value,
-    stage: $('#stage').value,
-    custom_prompt: $('#prompt').value,
-    gen_model: $('#gen_model').value,
-    translate: $('#translate').checked,
-  };
-  if(!body.dialogue.trim()){ $('#status').innerHTML = '<span class="err">대화를 입력하세요</span>'; return; }
-  $('#gen').disabled = true; $('#status').textContent = '생성 중…'; $('#result').innerHTML=''; $('#lang-toggle').innerHTML='';
-  try {
-    const r = await (await fetch('/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
-    if(r.error){ $('#status').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#gen').disabled=false; return; }
-    LAST = r; LANG = 'en';
-    let st = `<b>${r.n_turns}</b>턴 · 생성 <b>${r.gen_ms}ms</b>`;
-    if(r.tr_ms!=null) st += ` · 번역 <b>${r.tr_ms}ms</b>`;
-    $('#status').innerHTML = st;
-    if(r.sections_ko){
-      LANG = 'ko';
-      $('#lang-toggle').innerHTML = `<span style="font-size:12px;color:#5a6270">언어</span><span class="toggle"><button id="t-en">EN</button><button id="t-ko" class="on">한글</button></span>`;
-      $('#t-en').onclick = ()=>{LANG='en'; $('#t-en').classList.add('on'); $('#t-ko').classList.remove('on'); draw();};
-      $('#t-ko').onclick = ()=>{LANG='ko'; $('#t-ko').classList.add('on'); $('#t-en').classList.remove('on'); draw();};
-    }
-    draw();
-    $('#dia').textContent = r.turns_fmt; $('#dia-wrap').style.display='block';
-  } catch(e){ $('#status').innerHTML = `<span class="err">요청 실패: ${esc(String(e))}</span>`; }
+  const dlg = $('#dialogue').value;
+  if(!dlg.trim()){ $('#status').innerHTML = '<span style="color:#b91c1c">대화를 입력하세요</span>'; return; }
+  clearFocus();
+  const tr = $('#translate').checked;
+  const common = { dialogue: dlg, gen_model: $('#gen_model').value, translate: tr };
+  $('#gen').disabled = true;
+  $('#status').textContent = tr ? '생성 중 (개선판+baseline 병렬, 번역 포함)…' : '생성 중 (개선판+baseline 병렬)…';
+  $('#ours').innerHTML = skeleton(9); $('#base').innerHTML = skeleton(9);
+  const post = body => fetch('/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const [ours, base] = await Promise.all([
+    post({...common, stage: $('#stage').value, custom_prompt: $('#prompt').value}),
+    post({...common, stage: 'baseline'}),
+  ]);
+  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null };
+  LANG = (tr && (ours.sections_ko || base.sections_ko)) ? 'ko' : 'en';
+  $('#lang-toggle').style.display = (ours.sections_ko || base.sections_ko) ? '' : 'none';
+  $('#t-ko').classList.toggle('on', LANG==='ko'); $('#t-en').classList.toggle('on', LANG==='en');
+  drawAll();
+  const ms = v => v==null ? '—' : (v/1000).toFixed(1)+'s';
+  $('#status').innerHTML = (ours.error||base.error) ? '<span style="color:#b91c1c">일부 실패 — 패널 확인</span>'
+    : `개선판 <b>${ms(ours.gen_ms)}</b> · baseline <b>${ms(base.gen_ms)}</b>` + (tr ? ` · 번역 <b>${ms((ours.tr_ms||0)+(base.tr_ms||0))}</b>` : '');
+  if(!ours.error && !base.error){
+    $('#drawer').classList.add('closed');
+    $('#toggle-drawer').textContent = '▸ 입력·프롬프트';
+  }
   $('#gen').disabled = false;
 };
 

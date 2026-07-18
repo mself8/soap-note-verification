@@ -9,8 +9,8 @@ import pandas as pd
 
 from . import config
 
-# 줄머리 화자태그: [bracket] 형식 또는 'Word:' 형식
-_SPEAKER = re.compile(r"^\s*(?:\[(?P<b>[^\]]+)\]|(?P<c>[A-Za-z][A-Za-z_ ]{1,19}):)\s*(?P<text>.*)$")
+# 줄머리 화자태그: [bracket] 형식 또는 'Word:' 형식 (한글 '의사:'/'환자:' 포함)
+_SPEAKER = re.compile(r"^\s*(?:\[(?P<b>[^\]]+)\]|(?P<c>[A-Za-z가-힣][A-Za-z_ 가-힣]{0,19}):)\s*(?P<text>.*)$")
 
 
 def _canon_speaker(raw):
@@ -18,6 +18,10 @@ def _canon_speaker(raw):
     if "doctor" in s or "clinic" in s or "physician" in s or "provider" in s:  # 'clinician'/오타 'clinican'
         return "doctor"
     if "patient" in s or "guest" in s or "caregiver" in s or "family" in s or "mother" in s or "father" in s:
+        return "patient"
+    if "의사" in s or "닥터" in s or "원장" in s or "선생" in s or "간호" in s:
+        return "doctor"
+    if "환자" in s or "보호자" in s or "가족" in s or "어머니" in s or "아버지" in s:
         return "patient"
     return s or "other"
 

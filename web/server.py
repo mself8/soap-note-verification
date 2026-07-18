@@ -30,6 +30,16 @@ SOAP_LABEL = {"S": "S · Subjective", "O": "O · Objective", "A": "A · Assessme
               "P": "P · Plan", "AP": "A·P · Assessment & Plan", "U": "· 기타/미분류"}
 
 
+def _dedup_repeat(note):
+    """소형모델이 노트 전체를 반복 생성하는 퇴화 감지 — 두 번째 'S: SUBJECTIVE'에서 절단.
+    UI 표시 전용 처리(배치 평가는 원본을 그대로 봄). 절단 여부를 함께 반환."""
+    lines = str(note).splitlines()
+    hits = [i for i, ln in enumerate(lines) if ln.strip() == "S: SUBJECTIVE"]
+    if len(hits) >= 2:
+        return "\n".join(lines[:hits[1]]).strip(), True
+    return note, False
+
+
 def _split_ap(text):
     lines = text.splitlines()
     for i, ln in enumerate(lines):
@@ -125,9 +135,12 @@ def generate(req: GenReq):
 
         t0 = time.time()
         note = generate_one(req.gen_model, sys_prompt, verify_prompt, {"turns": turns}, req.max_tokens)
+        note, truncated = _dedup_repeat(note)
         out = {
+            "truncated_repeat": truncated,
             "note_en": note,
             "sections_en": group_soap(note),
+            "turns": turns,
             "turns_fmt": dialogue.format_dialogue(turns),
             "n_turns": len(turns),
             "gen_ms": int((time.time() - t0) * 1000),
