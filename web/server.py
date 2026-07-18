@@ -21,8 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "data" / "aci-bench" / "baselines"))
 
-from pipeline import clients, config, dialogue, judge  # noqa: E402
+from pipeline import clients, config, dialogue, judge, revise  # noqa: E402
 from pipeline.generate import generate_one  # noqa: E402
+from pipeline.structured import generate_structured_one  # noqa: E402
 from pipeline.translate import translate_note, translate_texts  # noqa: E402
 from sectiontagger import SectionTagger  # noqa: E402
 
@@ -169,6 +170,41 @@ def judge_note_ep(req: JudgeReq):
         return {"error": f"{type(e).__name__}: {e}"}
 
 
+class ReviseReq(BaseModel):
+    dialogue: str
+    note: str                      # 교정 대상(영어 노트)
+    flagged: list[str] = []        # judge가 RED 판정한 clean 문장들(프론트가 보유한 rows에서)
+    mode: str = "rewrite"          # rewrite(재작성→재판정 통과 시 유지, 실패 시 drop) | drop
+    gen_model: str = "qwen2.5-7b"
+    judge_model: str = config.JUDGE_MODEL
+    translate: bool = False
+    translate_model: str = "llama3.1-8b"
+
+
+@app.post("/revise_note")
+def revise_note_ep(req: ReviseReq):
+    """judge-guided 자동 교정(B안): RED 문장 재작성/제거 → 교정본 재판정까지 반환."""
+    try:
+        turns = dialogue.parse_turns(req.dialogue)
+        convo = dialogue.format_dialogue(turns)
+        judge_prompt = (config.PROMPTS / config.JUDGE_PROMPT).read_text(encoding="utf-8").strip()
+        t0 = time.time()
+        revised, stats = revise.revise_note(req.note, req.flagged, convo, mode=req.mode,
+                                            gen_model=req.gen_model, judge_model=req.judge_model,
+                                            judge_prompt=judge_prompt)
+        rows_after = judge.judge_note(req.judge_model, judge_prompt, convo, revised, workers=16)
+        out = {"note_en": revised, "sections_en": group_soap(revised), "stats": stats,
+               "summary_after": judge.summarize(rows_after), "rows_after": rows_after,
+               "revise_ms": int((time.time() - t0) * 1000)}
+        if req.translate:
+            note_ko = translate_note(req.translate_model, revised)
+            out["note_ko"] = note_ko
+            out["sections_ko"] = group_soap(note_ko)
+        return out
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
 class TrTurnsReq(BaseModel):
     dialogue: str
     translate_model: str = "llama3.1-8b"
@@ -205,7 +241,11 @@ def generate(req: GenReq):
             if st["self_verify"] else None
 
         t0 = time.time()
-        note = generate_one(req.gen_model, sys_prompt, verify_prompt, {"turns": turns}, req.max_tokens)
+        if st.get("structured"):
+            note, _ = generate_structured_one(req.gen_model, sys_prompt, {"turns": turns},
+                                              max(req.max_tokens, 6144))
+        else:
+            note = generate_one(req.gen_model, sys_prompt, verify_prompt, {"turns": turns}, req.max_tokens)
         note, truncated = _dedup_repeat(note)
         out = {
             "truncated_repeat": truncated,

@@ -164,7 +164,7 @@
     <div class="colbody" id="chat"><div class="empty">아직 대화가 없습니다.<br>샘플을 불러오거나 붙여넣은 뒤 <b>생성</b>.</div></div>
   </div>
   <div class="col" id="col-ours">
-    <div class="colhead"><span class="dot" style="background:#2563eb"></span>개선판 SOAP <span class="sub" id="ours-sub">(우리 방식 · 근거 인용)</span></div>
+    <div class="colhead"><span class="dot" style="background:#2563eb"></span>개선판 SOAP <span class="sub" id="ours-sub">(우리 방식 · 근거 인용)</span><span id="rev-ui" style="margin-left:auto"></span></div>
     <div class="colbody" id="ours"><div class="empty">문장에 마우스를 올리면<br>근거 발화와 <b style="color:#f59e0b">선</b>으로 연결됩니다.</div></div>
   </div>
   <div class="col" id="col-base">
@@ -192,8 +192,9 @@ const BANNER_RE = /^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$/;
 const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
 const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
 
-let R = { ours:null, base:null, turns:null, turnsKo:null, stageKey:null };   // 생성 결과 (+표시용 대화번역)
-let JV = { ours:null, base:null };              // judge 판정 {map:{'S:3':'hallu'|'ok'}, counts, summary}
+let R = { ours:null, base:null, turns:null, turnsKo:null, stageKey:null,
+          dlg:null, oursRev:null, showRev:false };   // 생성 결과 (+대화번역·judge교정본)
+let JV = { ours:null, base:null, oursRev:null };     // judge 판정 {map, counts, summary, rows}
 let STAGE_LABEL = {}, JUDGE_NAME = '';
 let RUN = 0;                                    // 재생성 시 이전 실행의 늦은 응답(judge·번역) 폐기용 토큰
 let LANG = 'ko';
@@ -289,15 +290,58 @@ function updateSubs(){
   const j = p => (JV[p] && JV[p].summary)
     ? ` · 환각 ${Math.round(JV[p].summary.hallucination_rate*100)}% (${JV[p].summary.judged}문장 판정)` : '';
   const key = R.stageKey || $('#stage').value;   // 결과가 있으면 생성 시점의 단계로 표기(드롭다운 변경과 무관)
-  $('#ours-sub').textContent = `(${STAGE_LABEL[key] || key})` + j('ours');
+  const ok = (R.showRev && R.oursRev) ? 'oursRev' : 'ours';
+  $('#ours-sub').textContent = `(${STAGE_LABEL[key] || key}${ok==='oursRev' ? ' · 교정본' : ''})` + j(ok);
   $('#base-sub').textContent = '(비교용 · 맨몸 프롬프트)' + j('base');
 }
+function oursView(){ return (R.showRev && R.oursRev) ? ['oursRev', R.oursRev] : ['ours', R.ours]; }
+function redrawOurs(){
+  clearFocus();
+  const [k, res] = oursView();
+  renderNote($('#ours'), res, k); updateSubs(); }
 function drawAll(){
   clearFocus();
   if(R.turns) renderChat(R.turns);
-  renderNote($('#ours'), R.ours, 'ours');
+  const [k, res] = oursView();
+  renderNote($('#ours'), res, k);
   renderNote($('#base'), R.base, 'base');
   updateSubs();
+}
+
+/* ── judge-guided 자동 교정 (B안) ── */
+function renderRevUI(){
+  const ui = $('#rev-ui'); if(!ui) return;
+  if(R.oursRev){
+    ui.innerHTML = `<span class="toggle"><button id="rv-orig" class="${R.showRev?'':'on'}">원본</button><button id="rv-rev" class="${R.showRev?'on':''}">교정본</button></span>`;
+    $('#rv-orig').onclick = ()=>{ R.showRev=false; renderRevUI(); redrawOurs(); };
+    $('#rv-rev').onclick = ()=>{ R.showRev=true; renderRevUI(); redrawOurs(); };
+    return;
+  }
+  const rows = JV.ours && JV.ours.rows;
+  if(rows && rows.some(r=>r.grounded===false)){
+    ui.innerHTML = `<button class="sec" id="btn-revise" style="padding:3px 10px;font-size:11.5px">⚕ 환각 자동 교정</button>`;
+    $('#btn-revise').onclick = doRevise;
+  } else ui.innerHTML = '';
+}
+async function doRevise(){
+  const runId = RUN;
+  const btn = $('#btn-revise');
+  if(btn){ btn.disabled = true; btn.textContent = '교정 중… (재작성→재판정)'; }
+  const flagged = (JV.ours.rows||[]).filter(r=>r.grounded===false).map(r=>r.sent);
+  const r = await post('/revise_note', {dialogue: R.dlg, note: R.ours.note_en, flagged,
+      mode: 'rewrite', gen_model: $('#gen_model').value, translate: !!(R.ours && R.ours.sections_ko)});
+  if(runId !== RUN) return;
+  if(!r || r.error){
+    if(btn){ btn.disabled=false; btn.textContent='⚕ 환각 자동 교정'; }
+    $('#status').innerHTML += ` <span style="color:#b91c1c">교정 실패: ${esc(r ? r.error : '네트워크')}</span>`;
+    return;
+  }
+  R.oursRev = r; R.showRev = true;
+  JV.oursRev = buildJV(r, r.rows_after || []);
+  JV.oursRev.summary = r.summary_after; JV.oursRev.rows = r.rows_after;
+  const st = r.stats || {};
+  $('#status').innerHTML += ` · 교정: 재작성 유지 <b>${st.rewritten||0}</b>·삭제 <b>${st.dropped||0}</b> (${((r.revise_ms||0)/1000).toFixed(1)}s)`;
+  renderRevUI(); redrawOurs();
 }
 
 /* ── 연결선 (SVG) ── */
@@ -445,8 +489,10 @@ $('#gen').onclick = async ()=>{
     post('/generate', {...common, stage: 'baseline'}),
   ]);
   if(runId !== RUN) return;   // 그 사이 새 생성이 시작됨 — 이 결과는 폐기
-  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null, turnsKo: null, stageKey };
-  JV = { ours:null, base:null };
+  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null,
+        turnsKo: null, stageKey, dlg, oursRev: null, showRev: false };
+  JV = { ours:null, base:null, oursRev:null };
+  const revUi = $('#rev-ui'); if(revUi) revUi.innerHTML = '';
   if(turnsKoP) turnsKoP.then(r=>{
     if(runId !== RUN) return;
     if(r && r.turns_ko && r.turns_ko.length){
@@ -476,8 +522,9 @@ $('#gen').onclick = async ()=>{
     post('/judge_note', {dialogue: dlg, note: res.note_en}).then(r=>{
       if(runId !== RUN) return;   // 이전 실행의 늦은 판정 — 폐기
       jleft--;
-      if(r && r.rows){ JV[panel] = buildJV(res, r.rows); JV[panel].summary = r.summary; }
+      if(r && r.rows){ JV[panel] = buildJV(res, r.rows); JV[panel].summary = r.summary; JV[panel].rows = r.rows; }
       renderNote($('#'+panel), res, panel); updateSubs(); refresh();
+      if(panel === 'ours') renderRevUI();
       const el = $('#jstat');
       if(el && jleft<=0) el.textContent = (r && r.error) ? '· 판정 실패: '+r.error : `· 환각 판정 완료 (judge=${JUDGE_NAME})`;
     });
