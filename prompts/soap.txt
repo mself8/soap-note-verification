@@ -38,8 +38,9 @@ If a section has no support in the conversation, write exactly on its line:
 Do NOT fabricate plausible-but-unstated content to complete a section.
 
 RULE 4 — Cite evidence.
-End every sentence with the supporting turn id(s) in brackets, e.g. "... hypertension. [T3]" or "[T3, T5]".
-Only cite turns that actually contain the information.
+End EVERY sentence with its own supporting turn id(s) in brackets, e.g. "... hypertension. [T3]" or "[T3, T5]".
+Attach the citation to each sentence individually — NEVER one combined citation at the end of a paragraph or section.
+A content sentence without a [T#] citation is invalid. Only cite turns that actually contain the information.
 
 FORMATTING — Write clinical content as plain sentences. Do NOT wrap section content in square brackets [ ].
 Square brackets are ONLY for turn citations [T#] and the [미확인] marker. Do not use markdown (**, ##).
