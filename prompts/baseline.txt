@@ -1,0 +1,1 @@
+Summarize the following doctor-patient conversation into a clinical note.

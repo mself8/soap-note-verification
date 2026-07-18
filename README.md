@@ -49,8 +49,47 @@ docs/A_data_and_noise_types.md    §10-A: 데이터 역할 + 잡음/함정 유�
 docs/B_rules_and_prompts.md       §10-B: 규칙 4종(발화행위/hedge/미확인/citation) gold 대조
 docs/C_own_data_construction.md   §10-C: 자체데이터 스키마·음성라벨·분량 현실성
 docs/evaluation_premise_check.md  평가 전제 재계산 결과 (오늘의 핵심)
+pipeline/                         §10-D 백엔드 + §10-E 평가 (아래 '파이프라인' 참고)
+prompts/                          단계별 프롬프트(baseline→improve1→2→3, judge). B가 최종 확정
+scripts/serve_vllm.sh             로컬 vLLM 서빙(모델별)
 data/                             (gitignore) MTS-Dialog, aci-bench
+outputs/, reports/                (gitignore) 생성노트·점수·judge·비교표
 ```
+
+## 파이프라인 (D+E) — 다중모델 SOAP 검증
+
+**설계**: 모델-불가지 `chat()` + 프롬프트파일 단계 + 스코어러가 바로 먹는 CSV. 모델 비교 = `pipeline/config.py`의 `MODELS` 한 줄 추가.
+
+**2-환경 분리**: 생성은 `.venv-vllm`(GPU, vLLM 서버), 평가는 이 레포의 `.venv`(CPU, rouge/bert + `openai`). preds CSV로만 핸드오프.
+
+```bash
+# 0) 준비: 평가 venv에 openai 추가 / 생성용 vLLM venv (최초 1회)
+.venv/bin/pip install openai
+python3.10 -m venv .venv-vllm && .venv-vllm/bin/pip install vllm
+
+# 1) 모델 서빙 (GPU. huggingface.co 직접. flashinfer 샘플러 off는 스크립트에 내장)
+bash scripts/serve_vllm.sh qwen2.5-7b 0        # GPU0, 포트8001
+bash scripts/serve_vllm.sh qwen2.5-32b 0,1     # judge용 32B는 tp=2
+
+# 2) 생성 (D1·D2·D3) — 단계는 프롬프트파일로만 갈림
+.venv/bin/python -m pipeline.generate --model qwen2.5-7b --stage baseline --dataset aci --split valid --limit 3
+.venv/bin/python -m pipeline.generate --model qwen2.5-7b --stage improve2 --dataset aci --split valid
+# stage ∈ baseline|improve1|improve2|improve3(=improve2+자기검증)
+
+# 3) 평가 (D4 ROUGE/BERTScore, D5 LLM-judge)
+.venv/bin/python -m pipeline.metrics --preds outputs/preds/aci-valid__qwen2.5-7b__improve2.csv --dataset aci --split valid --divisions
+.venv/bin/python -m pipeline.judge   --preds outputs/preds/aci-valid__qwen2.5-7b__improve2.csv --dataset aci --split valid --judge-model qwen2.5-32b
+
+# 4) 비교표 (E1·E4): outputs/를 격자로 → reports/comparison.{md,csv} + failures.md
+.venv/bin/python -m pipeline.report
+
+# 자체 함정셋(E2, C데이터 대기): pipeline.own_metrics --preds … --traps …
+# 2인 교차채점(E3): pipeline.interrater --a r1.csv --b r2.csv
+```
+
+- **환각은 judge가 주지표**(1일차 결론: ROUGE/BERTScore는 환각률과 상관≈0 → 유사도·누락 대리). judge=강한 모델 1개(Qwen2.5-32B) 고정.
+- **citation**: precision·turn-match만 측정(recall은 gold 부재, docs/B §B-4).
+- **vLLM 함정**: 이 머신엔 시스템 CUDA 없음 → flashinfer 샘플러 JIT 실패. `serve_vllm.sh`가 `VLLM_USE_FLASHINFER_SAMPLER=0`으로 우회(greedy라 동등).
 
 ## 재사용 — 새로 짜지 말 것
 
