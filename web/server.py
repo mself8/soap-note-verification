@@ -30,8 +30,8 @@ ST = SectionTagger()
 HERE = Path(__file__).resolve().parent
 app = FastAPI(title="SOAP Playground")
 
-SOAP_LABEL = {"S": "S · Subjective", "O": "O · Objective", "A": "A · Assessment",
-              "P": "P · Plan", "AP": "A·P · Assessment & Plan", "U": "· 기타/미분류"}
+SOAP_LABEL = {"S": "— Subjective", "O": "— Objective", "A": "— Assessment",
+              "P": "— Plan", "AP": "— Assessment & Plan", "U": "· 기타/미분류"}
 
 
 def _dedup_repeat(note):
