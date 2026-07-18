@@ -1,10 +1,14 @@
 """SOAP 플레이그라운드 — FastAPI. 대화 입력 → SOAP 생성(+한글), 프롬프트 라이브 편집 A/B.
 
+주의: 대화 번역(/translate_turns)은 화면 표시 전용 — 모델 입력·채점·근거검증은
+항상 원문 대화를 쓴다(입력 번역 금지 원칙).
+
 실행:
   .venv/bin/uvicorn web.server:app --host 0.0.0.0 --port 8000 --app-dir /workspace/soap-note-verification
 사전조건: 생성 vLLM(Qwen 8001), 번역 vLLM(Llama 8002)이 떠 있어야 함.
 UI는 단일 예시 확인·데모용 — 프롬프트 A/B 판정은 배치 평가(pipeline.metrics/judge)가 진실.
 """
+import re
 import sys
 import time
 from pathlib import Path
@@ -19,7 +23,7 @@ sys.path.insert(0, str(ROOT / "data" / "aci-bench" / "baselines"))
 
 from pipeline import clients, config, dialogue  # noqa: E402
 from pipeline.generate import generate_one  # noqa: E402
-from pipeline.translate import translate_note  # noqa: E402
+from pipeline.translate import translate_note, translate_texts  # noqa: E402
 from sectiontagger import SectionTagger  # noqa: E402
 
 ST = SectionTagger()
@@ -43,14 +47,37 @@ def _dedup_repeat(note):
 def _split_ap(text):
     lines = text.splitlines()
     for i, ln in enumerate(lines):
-        if ln.strip().strip("*#[] ").rstrip(":").strip().lower() == "plan":
+        t = ln.strip().strip("*#[] ").rstrip(":").strip().lower()
+        if t in ("plan", "p: plan"):
             return "\n".join(lines[:i]).strip(), "\n".join(lines[i:]).strip()
     return text, None
 
 
+_BANNER_KEY = {"S: SUBJECTIVE": "S", "O: OBJECTIVE": "O", "A: ASSESSMENT": "A", "P: PLAN": "P"}
+
+
 def group_soap(note):
-    """공식 section_tagger로 노트를 S/O/A·P 구역으로 그룹핑 → [{key,label,text}]."""
+    """노트를 S/O/A/P 구역으로 그룹핑 → [{key,label,text}].
+
+    soap 단계처럼 명시적 배너("S: SUBJECTIVE" 등)가 있으면 배너 기준으로 잘라
+    4구역을 항상 전부 반환(빈 구역은 text="") — UI에 S/O/A/P가 무조건 나뉘어 뜨는 보장.
+    배너가 없는 출력(baseline/improve)은 공식 section_tagger 추정으로 폴백(채점과 동일 기준).
+    """
     note = str(note)
+    lines = note.splitlines()
+    marks = [(i, _BANNER_KEY[ln.strip()]) for i, ln in enumerate(lines) if ln.strip() in _BANNER_KEY]
+    if len(marks) >= 2:
+        segs = []
+        pre = "\n".join(lines[:marks[0][0]]).strip()
+        if pre:
+            segs.append(("U", pre))
+        found = {}
+        bounds = marks + [(len(lines), None)]
+        for (i, key), (j, _next) in zip(marks, bounds[1:]):
+            found[key] = (found.get(key, "") + "\n" + "\n".join(lines[i + 1:j])).strip()
+        for key in ("S", "O", "A", "P"):
+            segs.append((key, found.get(key, "")))
+        return [{"key": k, "label": SOAP_LABEL.get(k, k), "text": t} for k, t in segs]
     try:
         divs = ST.divide_note_by_metasections(note)
     except Exception:  # noqa: BLE001
@@ -119,6 +146,29 @@ def sample():
     recs = dialogue.load("aci", "valid", limit=1)
     r = recs[0]
     return {"encounter_id": r["encounter_id"], "dialogue": r["dialogue"]}
+
+
+class TrTurnsReq(BaseModel):
+    dialogue: str
+    translate_model: str = "llama3.1-8b"
+
+
+@app.post("/translate_turns")
+def translate_turns(req: TrTurnsReq):
+    """대화 발화를 한글로 — 화면 표시 전용(모델 입력은 항상 원문)."""
+    try:
+        turns = dialogue.parse_turns(req.dialogue)
+        hangul = len(re.findall(r"[가-힣]", req.dialogue))
+        alpha = len(re.findall(r"[A-Za-z가-힣]", req.dialogue))
+        if alpha and hangul / alpha > 0.3:  # 이미 한국어 대화면 번역 불필요
+            return {"already_ko": True, "turns_ko": []}
+        t0 = time.time()
+        kos = translate_texts(req.translate_model, [t["text"] for t in turns])
+        return {"already_ko": False,
+                "turns_ko": [{"turn_id": t["turn_id"], "text_ko": k} for t, k in zip(turns, kos)],
+                "tr_ms": int((time.time() - t0) * 1000)}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 @app.post("/generate")

@@ -101,6 +101,19 @@ def translate_note(model, note):
     return "\n".join(out)
 
 
+def translate_texts(model, texts, workers=12):
+    """짧은 텍스트 목록(대화 발화 등) 일괄 한글 번역 — 표시용. 실패 시 원문 유지."""
+    def _tr(text):
+        if not text.strip():
+            return text
+        try:
+            return clients.chat(model, TR_SYS, text, temperature=0.3, max_tokens=400).strip()
+        except Exception:  # noqa: BLE001
+            return text
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(_tr, texts))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preds", required=True)

@@ -182,21 +182,23 @@ const BANNER_RE = /^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$/;
 const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
 const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
 
-let R = { ours:null, base:null, turns:null };   // 생성 결과
+let R = { ours:null, base:null, turns:null, turnsKo:null };   // 생성 결과 (+표시용 대화번역)
 let LANG = 'ko';
 let pin = null, hoverA = null;                  // {type:'ln',el} | {type:'turn',id}
 
 /* ── 렌더: 채팅 ── */
 function renderChat(turns){
+  const useKo = LANG==='ko' && R.turnsKo;
   $('#chat').innerHTML = turns.map(t=>{
     const sp = SPK[t.speaker] || {ko:t.speaker, ini:'?'};
     const cls = SPK[t.speaker] ? t.speaker : 'other';
+    const txt = (useKo && R.turnsKo[t.turn_id]) || t.text;
     return `<div class="turn ${cls}" id="bub-${t.turn_id}" data-t="${t.turn_id}">
       <div class="avatar">${esc(sp.ini)}</div>
       <div class="bubwrap"><div class="meta">${esc(sp.ko)} · T${t.turn_id}</div>
-      <div class="bubble">${esc(t.text)}</div></div></div>`;
+      <div class="bubble">${esc(txt)}</div></div></div>`;
   }).join('');
-  $('#chat-sub').textContent = `${turns.length}턴`;
+  $('#chat-sub').textContent = `${turns.length}턴` + (useKo ? ' · 한글 표시 (모델 입력은 원문)' : '');
 }
 
 /* ── 렌더: 노트 ── */
@@ -233,8 +235,11 @@ function renderNote(el, res, isBase){
   el.innerHTML = warn + secs.map(s=>{
     let label = s.label;
     if(isBase && s.key==='U') label = '비구조 출력 — SOAP 구역 인식 실패 (baseline 한계)';
+    const body = s.text.trim()
+      ? s.text.split('\n').map(lineHTML).join('')
+      : '<div class="ln unk">ⓘ 이 구역 출력 없음 — 모델이 생성하지 않음</div>';
     return `<div class="soap ${s.key}"><div class="soaphead"><span class="badge">${s.key}</span>${esc(label)}</div>
-      <div class="soapbody">${s.text.split('\n').map(lineHTML).join('')}</div></div>`;
+      <div class="soapbody">${body}</div></div>`;
   }).join('');
 }
 function drawAll(){
@@ -377,13 +382,20 @@ $('#gen').onclick = async ()=>{
   $('#gen').disabled = true;
   $('#status').textContent = tr ? '생성 중 (개선판+baseline 병렬, 번역 포함)…' : '생성 중 (개선판+baseline 병렬)…';
   $('#ours').innerHTML = skeleton(9); $('#base').innerHTML = skeleton(9);
-  const post = body => fetch('/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+  const post = (url, body) => fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(body)}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const turnsKoP = tr ? post('/translate_turns', {dialogue: dlg}) : null;   // 표시용 대화번역 (병렬)
   const [ours, base] = await Promise.all([
-    post({...common, stage: $('#stage').value, custom_prompt: $('#prompt').value}),
-    post({...common, stage: 'baseline'}),
+    post('/generate', {...common, stage: $('#stage').value, custom_prompt: $('#prompt').value}),
+    post('/generate', {...common, stage: 'baseline'}),
   ]);
-  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null };
+  R = { ours, base, turns: (!ours.error && ours.turns) || (!base.error && base.turns) || null, turnsKo: null };
+  if(turnsKoP) turnsKoP.then(r=>{
+    if(r && r.turns_ko && r.turns_ko.length){
+      R.turnsKo = Object.fromEntries(r.turns_ko.map(t=>[t.turn_id, t.text_ko]));
+      if(LANG==='ko' && R.turns){ renderChat(R.turns); refresh(); }
+    }
+  });
   LANG = (tr && (ours.sections_ko || base.sections_ko)) ? 'ko' : 'en';
   $('#lang-toggle').style.display = (ours.sections_ko || base.sections_ko) ? '' : 'none';
   $('#t-ko').classList.toggle('on', LANG==='ko'); $('#t-en').classList.toggle('on', LANG==='en');
