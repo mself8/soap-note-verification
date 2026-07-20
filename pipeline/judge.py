@@ -118,7 +118,7 @@ def summarize(all_rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preds", required=True)
-    ap.add_argument("--dataset", default="aci", choices=["aci", "mts"])
+    ap.add_argument("--dataset", default="aci", choices=["aci", "mts", "own", "dysem"])
     ap.add_argument("--split", default="valid")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--judge-model", default=config.JUDGE_MODEL, choices=list(config.MODELS))

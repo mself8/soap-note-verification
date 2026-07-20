@@ -92,7 +92,7 @@ def score_file(preds_csv, dataset, split, do_divisions=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preds", required=True)
-    ap.add_argument("--dataset", default="aci", choices=["aci", "mts"])
+    ap.add_argument("--dataset", default="aci", choices=["aci", "mts", "own", "dysem"])
     ap.add_argument("--split", default="valid")
     ap.add_argument("--divisions", action="store_true", help="SOAP 4구역별 ROUGE도 계산")
     args = ap.parse_args()

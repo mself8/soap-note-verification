@@ -68,6 +68,16 @@ def load(dataset, split, limit=None):
             "section_header": r["section_header"],
             "turns": parse_turns(r["dialogue"]),
         } for _, r in df.iterrows()]
+    elif (dataset, split) in config.TEAM_SPLITS:
+        path = config.TEAM_SPLITS[(dataset, split)]
+        if path is None:
+            raise FileNotFoundError(f"팀 데이터 파일 없음: {dataset}/{split} — data/ 폴더 확인")
+        df = pd.read_csv(path)
+        recs = [{
+            "dataset": r["dataset"], "encounter_id": r["encounter_id"],
+            "dialogue": r["dialogue"], "note": r["note"],
+            "turns": parse_turns(r["dialogue"]),
+        } for _, r in df.iterrows()]
     else:
-        raise ValueError(f"알 수 없는 dataset '{dataset}' (aci|mts)")
+        raise ValueError(f"알 수 없는 dataset '{dataset}' (aci|mts|own|dysem)")
     return recs[:limit] if limit else recs

@@ -28,6 +28,18 @@ MTS_SPLITS = {
     "test2": "MTS-Dialog-TestSet-2-MEDIQA-Sum-2023.csv",
 }
 
+# 자체 데이터(팀원 제작, 07-20 반입). 폴더명이 한글(macOS NFD 자모분해)이라 경로를 glob으로 해석.
+def _team_csv(pattern):
+    hits = sorted(DATA.glob(pattern))
+    return hits[0] if hits else None
+
+TEAM_SPLITS = {  # (dataset, split) -> csv. 모두 ACI 4컬럼 스키마(dataset, encounter_id, dialogue, note).
+    ("own", "noise100"): _team_csv("*/noise_en_100_main.csv"),      # 고은: 영어 노이즈 100 (정량)
+    ("own", "ko60"):     _team_csv("*/ko_demo_60_main.csv"),        # 고은: 한국어 60 (시연 전용)
+    ("dysem", "flat128"): _team_csv("*/aci_semantic_noise_eval_flat_128.csv"),  # 다연: clean64+noisy64
+    ("dysem", "plus271"): _team_csv("*/aci_plus_semantic_noise_271.csv"),       # 다연: ACI207+noisy64 통합
+}
+
 # 로컬 vLLM(OpenAI 호환) 엔드포인트. served_name = serve_vllm.sh 의 --served-model-name.
 # hf_id 가 게이트 모델(llama/mistral)이면 hf-mirror에서 401 시 ungated 재업로드로 교체
 # (예: NousResearch/Meta-Llama-3.1-8B-Instruct, unsloth/mistral-7b-instruct-v0.3). 주석의 대안 참고.

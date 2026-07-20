@@ -44,7 +44,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, choices=list(config.MODELS))
     ap.add_argument("--stage", required=True, choices=list(config.STAGES))
-    ap.add_argument("--dataset", default="aci", choices=["aci", "mts"])
+    ap.add_argument("--dataset", default="aci", choices=["aci", "mts", "own", "dysem"])
     ap.add_argument("--split", default="valid")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--max-tokens", type=int, default=2048)
