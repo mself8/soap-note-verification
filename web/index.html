@@ -68,6 +68,8 @@
   .turn.patient .avatar { background:#98a3b3; }
   .turn.doctor .avatar { background:#2563eb; }
   .turn.other .avatar { background:#a78bfa; }
+  .turn.guest .avatar { background:#0d9488; }
+  .turn.guest .bubble { background:#f0fdfa; border:1px solid #cceee8; border-top-left-radius:4px; }
   .bubwrap { max-width:80%; display:flex; flex-direction:column; }
   .turn.doctor .bubwrap { align-items:flex-end; }
   .meta { font-size:11px; color:#8a93a3; margin:0 4px 3px; }
@@ -190,7 +192,7 @@ const UNK_RE = /\[미확인[^\]]*\]/;
 const HEDGE_RE = /\b(likely|suspected|possibl[ey]|probable|unsure|uncertain)\b|의심|추정|가능성|불확실/i;
 const BANNER_RE = /^[SOAP]: (SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN)$/;
 const KO_HDRS = ['주호소','현병력','계통 문진','신체 진찰','검사 결과','과거력','과거 수술력','투약','사회력','가족력','알레르기','예방접종','활력징후'];
-const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'} };
+const SPK = { doctor:{ko:'의사',ini:'의'}, patient:{ko:'환자',ini:'환'}, guest:{ko:'보호자',ini:'보'} };
 
 let R = { ours:null, base:null, turns:null, turnsKo:null, stageKey:null,
           dlg:null, oursRev:null, showRev:false };   // 생성 결과 (+대화번역·judge교정본)

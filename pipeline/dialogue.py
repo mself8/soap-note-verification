@@ -17,11 +17,17 @@ def _canon_speaker(raw):
     s = raw.strip().lower().replace(" ", "_")
     if "doctor" in s or "clinic" in s or "physician" in s or "provider" in s:  # 'clinician'/오타 'clinican'
         return "doctor"
-    if "patient" in s or "guest" in s or "caregiver" in s or "family" in s or "mother" in s or "father" in s:
+    # 보호자·가족은 환자와 구분 — '타인 정보 혼입' 노이즈 대응의 컨텍스트 근거.
+    # 주의: 'patient_guest'는 둘 다 포함하므로 guest 체크가 patient보다 먼저.
+    if "guest" in s or "caregiver" in s or "family" in s or "mother" in s or "father" in s:
+        return "guest"
+    if "patient" in s:
         return "patient"
     if "의사" in s or "닥터" in s or "원장" in s or "선생" in s or "간호" in s:
         return "doctor"
-    if "환자" in s or "보호자" in s or "가족" in s or "어머니" in s or "아버지" in s:
+    if "보호자" in s or "가족" in s or "어머니" in s or "아버지" in s:
+        return "guest"
+    if "환자" in s:
         return "patient"
     return s or "other"
 
