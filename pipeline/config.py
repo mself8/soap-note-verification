@@ -73,6 +73,8 @@ STAGES = {
                   "label": "최종·강화 · 노이즈 대응 규칙 (거짓전제·타인정보·조건부)"},
     "soap_strict": {"prompt": "soap_strict.txt",   "self_verify": False, "structured": True,
                     "label": "최종+ · 구조 강제 디코딩 (스키마 보장)"},  # 형식·인용범위를 디코더가 강제
+    "soap_fewshot": {"prompt": "soap_fewshot.txt", "self_verify": False,  # 실패모드 3예시(미확인A/P·자기진단·보호자)
+                     "label": "최종+예시 · Few-shot (실패모드 예시 3종)"},
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
 JUDGE_PROMPT = "judge_grounded.txt"
