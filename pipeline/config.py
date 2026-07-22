@@ -77,6 +77,8 @@ STAGES = {
                      "label": "최종+예시 · Few-shot (실패모드 예시 3종)"},
     "soap_fewshot_v2": {"prompt": "soap_fewshot_v2.txt", "self_verify": False,  # 고은 예시 18종(규칙4+노이즈5, 반례 포함)
                         "label": "최종+예시 v2 · Few-shot (고은 18예시)"},
+    "soap_nocite": {"prompt": "soap_nocite.txt", "self_verify": False,  # A안 사다리 개선1′ = soap 규격+규칙, 인용 없음
+                    "label": "개선1′ · 규격+규칙 (인용 없음)"},
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
 JUDGE_PROMPT = "judge_grounded.txt"

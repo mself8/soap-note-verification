@@ -105,7 +105,7 @@ def revise_note(note, flagged_sents, convo, mode="drop", gen_model=None,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--preds", required=True)
-    ap.add_argument("--dataset", default="aci", choices=["aci", "mts"])
+    ap.add_argument("--dataset", default="aci", choices=["aci", "mts", "own", "dysem"])
     ap.add_argument("--split", default="valid")
     ap.add_argument("--mode", default="drop", choices=["drop", "rewrite"])
     ap.add_argument("--gen-model", default="qwen2.5-7b", choices=list(config.MODELS))
