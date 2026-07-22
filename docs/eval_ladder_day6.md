@@ -62,6 +62,17 @@ v3) A/B를 권고. fig2의 few-shot 선은 v1 기준 유지.
 
 ## 재현
 
+**그래프만 (GPU 불필요)**: 수치 집계본 `reports/figure_data.json`이 커밋돼 있어
+`scripts/make_figures.py` 실행 또는 `notebooks/figures.ipynb`(실행된 출력 포함)로 5장 전부 재현된다.
+파이프라인을 다시 돌려 `outputs/`를 새로 만들었으면 `--rebuild`로 집계본부터 갱신.
+
+```bash
+.venv/bin/python scripts/make_figures.py            # 그래프 렌더 (커밋된 집계본 사용)
+.venv/bin/python scripts/make_figures.py --rebuild  # outputs/에서 집계 후 렌더
+```
+
+**전체 파이프라인 (GPU 필요)**:
+
 ```bash
 # 교정 (모델별, 서버: 생성모델 + 32B judge 필요 — GPU 0,1만 사용할 것)
 .venv/bin/python -m pipeline.revise --preds outputs/preds/aci-valid__<M>__improve2.csv \
