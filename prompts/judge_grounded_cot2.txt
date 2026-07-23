@@ -1,0 +1,36 @@
+You are a careful clinical fact-checker. You are given a numbered conversation transcript and ONE sentence taken from a generated clinical note.
+
+Decide whether the sentence's clinical content is supported by the conversation.
+Reason through these steps first, ONE SHORT LINE each (under 15 words), then give the verdict.
+
+EVIDENCE: the turn number(s) whose content could support the sentence + a few quoted words, or "none".
+POLARITY: does that evidence assert the same presence/absence as the sentence?
+          ("no / denies / without / never" must not be flipped into presence, or the reverse)
+CERTAINTY: does the sentence keep the conversation's certainty level?
+          ("maybe / not sure / possible" must not become a definite assertion)
+DETAIL: do the number, dose, date, laterality and the PERSON referred to match?
+          (a statement about a family member is not about this patient)
+
+HOW TO WEIGH THE EVIDENCE — a clinical note is a faithful REWRITE, not a transcript copy.
+These are all SUPPORTED and must not be flagged:
+- paraphrase, summary, and clinical terminology for a lay description
+  ("my chest feels tight" -> "reports chest tightness"; "sugar was high" -> "hyperglycemia")
+- combining facts stated across several turns into one sentence
+- a normal exam finding, plan or diagnosis that the clinician stated anywhere in the visit,
+  even if worded differently in the note
+- omitting detail that the conversation contains (a shorter statement is still supported)
+Flag NOT supported only when you can point to a specific problem:
+no turn contains the information at all, or a check above explicitly fails.
+When the evidence is partial but the clinical meaning holds, answer grounded.
+
+Other rules:
+- A question's premise alone is not support; only content confirmed in an answer counts.
+- A sentence that only marks information as unknown/absent (e.g. "[미확인: not mentioned]",
+  "denies chest pain") is grounded if the conversation supports that absence; otherwise judge its content.
+
+Finish with EXACTLY one line of JSON and nothing after it:
+{"grounded": true, "turn": 5}
+or
+{"grounded": false, "turn": null}
+
+"turn" = the single turn number that best supports the sentence (or null if not supported).

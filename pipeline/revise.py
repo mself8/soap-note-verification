@@ -41,7 +41,7 @@ def _norm(s):
 
 
 def revise_note(note, flagged_sents, convo, mode="drop", gen_model=None,
-                judge_model=None, judge_prompt=None):
+                judge_model=None, judge_prompt=None, max_tokens=None):
     """flagged_sents(정규화 전 clean 문장들)를 노트 텍스트에서 수술. → (revised, stats)"""
     flagged = {_norm(s) for s in flagged_sents if _norm(s)}
     stats = {"flagged": len(flagged), "dropped": 0, "rewritten": 0}
@@ -70,7 +70,8 @@ def revise_note(note, flagged_sents, convo, mode="drop", gen_model=None,
                 except Exception:  # noqa: BLE001
                     fix = "[REMOVE]"
                 if fix and fix != "[REMOVE]" and judge_model:
-                    verdict = judge._judge_sentence(judge_model, judge_prompt, convo, fix)
+                    verdict = judge._judge_sentence(judge_model, judge_prompt, convo, fix,
+                                                    max_tokens=max_tokens)
                     if verdict["grounded"]:
                         kept.append(fix)
                         stats["rewritten"] += 1
@@ -112,9 +113,14 @@ def main():
     ap.add_argument("--judge-model", default=config.JUDGE_MODEL, choices=list(config.MODELS))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=4, help="encounter 동시 처리 수")
+    ap.add_argument("--judge-prompt", default=None,
+                    help="판정 프롬프트 파일명(기본 config.JUDGE_PROMPT). 예: judge_grounded_cot2.txt")
+    ap.add_argument("--max-tokens", type=int, default=None, help="판정 응답 토큰 상한(CoT는 380 권장)")
+    ap.add_argument("--tag", default=None, help="출력 파일명 접미사(판정기별 결과 분리용)")
     args = ap.parse_args()
 
-    judge_prompt = (config.PROMPTS / config.JUDGE_PROMPT).read_text(encoding="utf-8").strip()
+    judge_prompt = (config.PROMPTS / (args.judge_prompt or config.JUDGE_PROMPT)).read_text(
+        encoding="utf-8").strip()
     df = pd.read_csv(args.preds)
     if args.limit:
         df = df.head(args.limit)
@@ -123,12 +129,14 @@ def main():
 
     def _run(row):
         convo = dialogue.format_dialogue(turns_by_id.get(row.encounter_id, []))
-        before = judge.judge_note(args.judge_model, judge_prompt, convo, row.note)
+        before = judge.judge_note(args.judge_model, judge_prompt, convo, row.note,
+                                  max_tokens=args.max_tokens)
         flagged = [r["sent"] for r in before if r["grounded"] is False]
         revised, stats = revise_note(row.note, flagged, convo, mode=args.mode,
                                      gen_model=args.gen_model, judge_model=args.judge_model,
-                                     judge_prompt=judge_prompt)
-        after = judge.judge_note(args.judge_model, judge_prompt, convo, revised)
+                                     judge_prompt=judge_prompt, max_tokens=args.max_tokens)
+        after = judge.judge_note(args.judge_model, judge_prompt, convo, revised,
+                                 max_tokens=args.max_tokens)
         return revised, judge.summarize(before), judge.summarize(after), stats
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
@@ -150,9 +158,10 @@ def main():
     out_df["note"] = [r for r, _, _, _ in results]
     OUT.mkdir(parents=True, exist_ok=True)
     stem = args.preds.split("/")[-1].rsplit(".", 1)[0]
-    out = OUT / f"{stem}__rev-{args.mode}.csv"
+    suffix = f"__rev-{args.mode}" + (f"__{args.tag}" if args.tag else "")
+    out = OUT / f"{stem}{suffix}.csv"
     out_df.to_csv(out, index=False)
-    (OUT / f"{stem}__rev-{args.mode}.summary.json").write_text(
+    (OUT / f"{stem}{suffix}.summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[revise] 저장 → {out}")
 

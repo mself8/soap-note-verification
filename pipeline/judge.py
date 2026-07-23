@@ -127,6 +127,8 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--judge-model", default=config.JUDGE_MODEL, choices=list(config.MODELS))
     ap.add_argument("--workers", type=int, default=16, help="문장 동시 판정 수(vLLM 배칭)")
+    ap.add_argument("--note-workers", type=int, default=1,
+                    help="노트 동시 처리 수. workers와 곱해져 총 동시요청이 된다(CoT 판정 시 4~6 권장)")
     ap.add_argument("--judge-prompt", default=None,
                     help="판정 프롬프트 파일명(기본 config.JUDGE_PROMPT). 예: judge_grounded_cot.txt")
     ap.add_argument("--max-tokens", type=int, default=None, help="판정 응답 토큰 상한(CoT는 320 권장)")
@@ -142,17 +144,26 @@ def main():
     turns_by_id = {r["encounter_id"]: r["turns"] for r in dialogue.load(args.dataset, args.split)}
 
     print(f"[judge] {args.preds}  judge={args.judge_model}  ({len(pred_df)}개 노트)")
-    all_rows = []
-    for i, row in enumerate(pred_df.itertuples(index=False), 1):
-        turns = turns_by_id.get(row.encounter_id, [])
-        convo = dialogue.format_dialogue(turns)
+
+    def _one_note(row):
+        convo = dialogue.format_dialogue(turns_by_id.get(row.encounter_id, []))
         rows = judge_note(args.judge_model, sys_prompt, convo, row.note,
                           workers=args.workers, max_tokens=args.max_tokens)
         for r in rows:
             r["encounter_id"] = row.encounter_id
+        return rows
+
+    records = list(pred_df.itertuples(index=False))
+    if args.note_workers > 1:  # 노트 단위 병렬(문장 병렬과 곱해짐)
+        with ThreadPoolExecutor(max_workers=args.note_workers) as ex:
+            per_note = list(ex.map(_one_note, records))
+    else:
+        per_note = [_one_note(r) for r in records]
+    all_rows = []
+    for i, (row, rows) in enumerate(zip(records, per_note), 1):
         all_rows.extend(rows)
         g = sum(1 for r in rows if r["grounded"])
-        print(f"  [{i}/{len(pred_df)}] {row.encounter_id}: {g}/{len(rows)} grounded")
+        print(f"  [{i}/{len(records)}] {row.encounter_id}: {g}/{len(rows)} grounded")
 
     config.JUDGE_OUT.mkdir(parents=True, exist_ok=True)
     stem = args.preds.split("/")[-1].rsplit(".", 1)[0] + (f"__{args.tag}" if args.tag else "")
