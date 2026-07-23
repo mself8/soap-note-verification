@@ -38,6 +38,9 @@ LADDER_SPLITS = ["test1", "test2", "test3"]
 # (stage, revise suffix) — 개선3 = 개선2(soap) 출력에 32B 검증기 자동교정
 LADDER_STAGES = [("baseline", ""), ("soap_nocite", ""), ("soap", ""), ("soap", "__rev-drop")]
 NOISE_STAGES = ["soap", "soap_hard", "soap_fewshot"]  # 전부 __rev-drop(교정) 적용본
+# 판정기 태그. "__cot" = CoT 판정기로 재측정한 결과(환각률·인용 정밀도가 이 값에서 나온다).
+# ""로 두면 초기 직판정 결과를 쓴다. 교정(개선3)도 같은 판정기로 수행된 산출물을 읽는다.
+JUDGE_TAG = "__cot"
 NOISE_TYPES = {"N_G": "third_party", "N_M": "asr_mistag", "N_T": "temporal",
                "N_R": "requant", "N_N": "asr_numeric"}
 
@@ -65,10 +68,14 @@ plt.rcParams.update({"font.family": "NanumBarunGothic", "axes.unicode_minus": Fa
 
 
 # ---------------- 1) 집계 ----------------
-def _read_one(stem):
-    """scores·judge 산출물 한 쌍 → 5지표 튜플. 없으면 None."""
+def _read_one(stem, judge_stem=None):
+    """scores·judge 산출물 한 쌍 → 5지표 dict. 없으면 None.
+
+    judge_stem을 따로 주면 judge만 다른 파일에서 읽는다(같은 노트를 다른 판정기로
+    재판정한 경우 — ROUGE·BERTScore는 판정기와 무관하므로 scores는 그대로 쓴다).
+    """
     sc_p = ROOT / f"outputs/scores/{stem}.json"
-    jd_p = ROOT / f"outputs/judge/{stem}.summary.json"
+    jd_p = ROOT / f"outputs/judge/{judge_stem or stem}.summary.json"
     if not (sc_p.exists() and jd_p.exists()):
         return None
     sc, jd = json.load(open(sc_p)), json.load(open(jd_p))
@@ -113,7 +120,11 @@ def build_data():
     for m in MODELS:
         cols = {k: [] for k, _, _, _ in METRICS}
         for st, rev in LADDER_STAGES:
-            vals = [_read_one(f"aci-{sp}__{m}__{st}{rev}") for sp in LADDER_SPLITS]
+            if rev:  # 개선3 — 교정본 자체가 판정기별로 다른 파일
+                vals = [_read_one(f"aci-{sp}__{m}__{st}{rev}{JUDGE_TAG}") for sp in LADDER_SPLITS]
+            else:    # 생성물은 동일, 판정만 판정기별로 분리
+                vals = [_read_one(f"aci-{sp}__{m}__{st}",
+                                  f"aci-{sp}__{m}__{st}{JUDGE_TAG}") for sp in LADDER_SPLITS]
             for k, _, _, _ in METRICS:
                 cols[k].append(_avg(vals, k))
         for k, _, _, _ in METRICS:
@@ -125,7 +136,7 @@ def build_data():
         cols = {k: [] for k, _, _, _ in METRICS}
         noise_by_type[m] = {}
         for st in NOISE_STAGES:
-            stem = f"own-noise100__{m}__{st}__rev-drop"
+            stem = f"own-noise100__{m}__{st}__rev-drop{JUDGE_TAG}"
             v = _read_one(stem)
             for k, _, _, _ in METRICS:
                 cols[k].append(v[k] if v else None)
@@ -139,9 +150,9 @@ def build_data():
 
     data = {"ladder": ladder, "noise": noise, "noise_by_type": noise_by_type,
             "meta": {
-                "ladder_eval": "ACI-Bench test 120건 · 4개 모델 · 판정=Qwen2.5-32B Judge · "
+                "ladder_eval": "ACI-Bench test 120건 · 4개 모델 · 판정=Qwen2.5-32B CoT Judge · "
                                "전 단계 동일 SOAP 규격",
-                "noise_eval": "김고은 형태노이즈 100건 · 4개 모델 · 세 전략 모두 개선3(검증기 교정) 적용",
+                "noise_eval": "김고은 형태노이즈 100건 · 4개 모델 · 세 전략 모두 개선3(CoT 검증기 교정) 적용",
             }}
     DATA_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"[figure_data] 저장 → {DATA_JSON}")
