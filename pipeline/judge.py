@@ -68,22 +68,24 @@ def cited_turns(sent):
 
 
 def parse_verdict(text):
-    m = _JSON.search(text or "")
-    if not m:
+    # CoT 판정문은 추론 뒤에 JSON이 오므로 '마지막' JSON을 읽는다(단일 JSON이면 동일 동작).
+    ms = _JSON.findall(text or "")
+    if not ms:
         return None, None
     try:
-        d = json.loads(m.group(0))
+        d = json.loads(ms[-1])
         return bool(d.get("grounded")), d.get("turn")
     except Exception:  # noqa: BLE001
         return None, None
 
 
-def _judge_sentence(judge_model, sys_prompt, convo, sent):
+def _judge_sentence(judge_model, sys_prompt, convo, sent, max_tokens=None):
     turns = cited_turns(sent)
     clean = _CITE_BLOCK.sub("", sent).strip()
     try:
         reply = clients.chat(judge_model, sys_prompt,
-                             _JUDGE_USER.format(dialogue=convo, sent=clean), max_tokens=60)
+                             _JUDGE_USER.format(dialogue=convo, sent=clean),
+                             max_tokens=max_tokens or config.JUDGE_MAX_TOKENS)
         grounded, jturn = parse_verdict(reply)
     except Exception as e:  # noqa: BLE001
         print(f"  ! judge 실패: {e}", file=sys.stderr)
@@ -91,10 +93,12 @@ def _judge_sentence(judge_model, sys_prompt, convo, sent):
     return {"sent": clean, "cited_turns": turns, "grounded": grounded, "judge_turn": jturn}
 
 
-def judge_note(judge_model, sys_prompt, convo, note, workers=16):
+def judge_note(judge_model, sys_prompt, convo, note, workers=16, max_tokens=None):
     sents = split_sentences(note)
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        return list(ex.map(lambda s: _judge_sentence(judge_model, sys_prompt, convo, s), sents))
+        return list(ex.map(
+            lambda s: _judge_sentence(judge_model, sys_prompt, convo, s, max_tokens=max_tokens),
+            sents))
 
 
 def summarize(all_rows):
@@ -123,9 +127,15 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--judge-model", default=config.JUDGE_MODEL, choices=list(config.MODELS))
     ap.add_argument("--workers", type=int, default=16, help="문장 동시 판정 수(vLLM 배칭)")
+    ap.add_argument("--judge-prompt", default=None,
+                    help="판정 프롬프트 파일명(기본 config.JUDGE_PROMPT). 예: judge_grounded_cot.txt")
+    ap.add_argument("--max-tokens", type=int, default=None, help="판정 응답 토큰 상한(CoT는 320 권장)")
+    ap.add_argument("--tag", default=None,
+                    help="출력 파일명 접미사. 다른 판정기로 재판정할 때 기존 결과 덮어쓰기 방지")
     args = ap.parse_args()
 
-    sys_prompt = (config.PROMPTS / config.JUDGE_PROMPT).read_text(encoding="utf-8").strip()
+    sys_prompt = (config.PROMPTS / (args.judge_prompt or config.JUDGE_PROMPT)).read_text(
+        encoding="utf-8").strip()
     pred_df = pd.read_csv(args.preds)
     if args.limit:
         pred_df = pred_df.head(args.limit)
@@ -136,7 +146,8 @@ def main():
     for i, row in enumerate(pred_df.itertuples(index=False), 1):
         turns = turns_by_id.get(row.encounter_id, [])
         convo = dialogue.format_dialogue(turns)
-        rows = judge_note(args.judge_model, sys_prompt, convo, row.note, workers=args.workers)
+        rows = judge_note(args.judge_model, sys_prompt, convo, row.note,
+                          workers=args.workers, max_tokens=args.max_tokens)
         for r in rows:
             r["encounter_id"] = row.encounter_id
         all_rows.extend(rows)
@@ -144,7 +155,7 @@ def main():
         print(f"  [{i}/{len(pred_df)}] {row.encounter_id}: {g}/{len(rows)} grounded")
 
     config.JUDGE_OUT.mkdir(parents=True, exist_ok=True)
-    stem = args.preds.split("/")[-1].rsplit(".", 1)[0]
+    stem = args.preds.split("/")[-1].rsplit(".", 1)[0] + (f"__{args.tag}" if args.tag else "")
     with open(config.JUDGE_OUT / f"{stem}.jsonl", "w", encoding="utf-8") as f:
         for r in all_rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

@@ -1,0 +1,55 @@
+{
+  "n_items": 147,
+  "excluded_marker_rows": 3,
+  "interrater": {
+    "agreement": 0.8231,
+    "kappa": 0.1541,
+    "goeun_N": 24,
+    "dayeon_N": 10
+  },
+  "judge_vs_human": {
+    "goeun": {
+      "accuracy": 0.7687,
+      "halluc_precision": 0.4,
+      "halluc_recall": 0.8333,
+      "tp": 20,
+      "fp": 30,
+      "fn": 4,
+      "tn": 93
+    },
+    "dayeon": {
+      "accuracy": 0.6599,
+      "halluc_precision": 0.1,
+      "halluc_recall": 0.5,
+      "tp": 5,
+      "fp": 45,
+      "fn": 5,
+      "tn": 92
+    }
+  },
+  "judge_vs_consensus": {
+    "accuracy": 0.7603,
+    "halluc_precision": 0.069,
+    "halluc_recall": 0.5,
+    "tp": 2,
+    "fp": 27,
+    "fn": 2,
+    "tn": 90,
+    "n_items": 121
+  },
+  "judge_flagged_confirm_rate": {
+    "goeun": 0.4,
+    "dayeon": 0.1
+  },
+  "judge_flagged_n": 50,
+  "human_citation": {
+    "goeun": {
+      "labeled": 122,
+      "citation_ok_rate": 0.623
+    },
+    "dayeon": {
+      "labeled": 147,
+      "citation_ok_rate": 0.5442
+    }
+  }
+}

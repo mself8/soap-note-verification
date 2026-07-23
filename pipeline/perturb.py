@@ -136,8 +136,10 @@ def build_traps(gold_sents, dialogue_text):
 
 # ---------- 실행 ----------
 
-def run(dataset, split, judge_model, limit=None, workers=16):
-    sys_prompt = (config.PROMPTS / config.JUDGE_PROMPT).read_text(encoding="utf-8").strip()
+def run(dataset, split, judge_model, limit=None, workers=16,
+        judge_prompt=None, max_tokens=None):
+    sys_prompt = (config.PROMPTS / (judge_prompt or config.JUDGE_PROMPT)).read_text(
+        encoding="utf-8").strip()
     recs = dialogue.load(dataset, split, limit=limit)
     rows = []  # 판정 단위: {kind: gold|trap, ...}
 
@@ -147,7 +149,7 @@ def run(dataset, split, judge_model, limit=None, workers=16):
         traps = build_traps(gold_sents, str(rec["dialogue"]))
 
         def _j(sent):
-            return _judge_sentence(judge_model, sys_prompt, convo, sent)
+            return _judge_sentence(judge_model, sys_prompt, convo, sent, max_tokens=max_tokens)
 
         with ThreadPoolExecutor(max_workers=workers) as ex:
             gold_v = list(ex.map(_j, gold_sents))
@@ -202,15 +204,22 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--judge-model", default=config.JUDGE_MODEL, choices=list(config.MODELS))
     ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--judge-prompt", default=None,
+                    help="판정 프롬프트 파일명(기본 config.JUDGE_PROMPT). 예: judge_grounded_cot.txt")
+    ap.add_argument("--max-tokens", type=int, default=None,
+                    help="판정 응답 토큰 상한(CoT는 300 권장)")
+    ap.add_argument("--tag", default=None, help="출력 파일명 접미사(A/B 구분용)")
     args = ap.parse_args()
 
-    print(f"[perturb] {args.dataset}-{args.split}  judge={args.judge_model}")
-    rows = run(args.dataset, args.split, args.judge_model, limit=args.limit, workers=args.workers)
+    print(f"[perturb] {args.dataset}-{args.split}  judge={args.judge_model} "
+          f"prompt={args.judge_prompt or config.JUDGE_PROMPT}")
+    rows = run(args.dataset, args.split, args.judge_model, limit=args.limit, workers=args.workers,
+               judge_prompt=args.judge_prompt, max_tokens=args.max_tokens)
     summary = summarize(rows)
 
     config.JUDGE_OUT.mkdir(parents=True, exist_ok=True)
     config.SCORES.mkdir(parents=True, exist_ok=True)
-    stem = f"traps__{args.dataset}-{args.split}"
+    stem = f"traps__{args.dataset}-{args.split}" + (f"__{args.tag}" if args.tag else "")
     with open(config.JUDGE_OUT / f"{stem}.jsonl", "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

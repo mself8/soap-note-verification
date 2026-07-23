@@ -82,3 +82,6 @@ STAGES = {
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
 JUDGE_PROMPT = "judge_grounded.txt"
+# 판정 응답 토큰 상한. 직판정(JSON 한 줄)은 60이면 충분하고, CoT 판정
+# (judge_grounded_cot.txt)은 추론 단계가 앞에 붙으므로 300 정도가 필요하다.
+JUDGE_MAX_TOKENS = 60
