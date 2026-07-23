@@ -321,7 +321,7 @@ function renderRevUI(){
   }
   const rows = JV.ours && JV.ours.rows;
   if(rows && rows.some(r=>r.grounded===false)){
-    ui.innerHTML = `<button class="sec" id="btn-revise" style="padding:3px 10px;font-size:11.5px">⚕ 환각 자동 교정</button>`;
+    ui.innerHTML = `<button class="sec" id="btn-revise" style="padding:3px 10px;font-size:11.5px">⚕ 개선3 · 검증기 자동교정</button>`;
     $('#btn-revise').onclick = doRevise;
   } else ui.innerHTML = '';
 }
@@ -334,7 +334,7 @@ async function doRevise(){
       mode: 'rewrite', gen_model: $('#gen_model').value, translate: !!(R.ours && R.ours.sections_ko)});
   if(runId !== RUN) return;
   if(!r || r.error){
-    if(btn){ btn.disabled=false; btn.textContent='⚕ 환각 자동 교정'; }
+    if(btn){ btn.disabled=false; btn.textContent='⚕ 개선3 · 검증기 자동교정'; }
     $('#status').innerHTML += ` <span style="color:#b91c1c">교정 실패: ${esc(r ? r.error : '네트워크')}</span>`;
     return;
   }

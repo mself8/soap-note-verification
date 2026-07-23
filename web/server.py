@@ -128,7 +128,9 @@ def index():
 
 @app.get("/config")
 def get_config():
-    return {"stages": [{"key": k, "label": v.get("label", k)} for k, v in config.STAGES.items()],
+    # legacy 단계(폐기된 초안·미채택 실험)는 데모 드롭다운에서 감춘다. CLI로는 그대로 사용 가능.
+    return {"stages": [{"key": k, "label": v.get("label", k)}
+                       for k, v in config.STAGES.items() if not v.get("legacy")],
             "models": list(config.MODELS), "judge": config.JUDGE_MODEL}
 
 

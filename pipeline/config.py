@@ -60,28 +60,28 @@ JUDGE_MODEL = "qwen2.5-32b"
 # label = 표시용 이름(웹 UI·리포트) — 키는 파일명·CLI 호환을 위해 유지.
 STAGES = {
     "baseline": {"prompt": "baseline.txt",         "self_verify": False,
-                 "label": "Baseline — 맨몸 프롬프트"},
+                 "label": "Baseline — 기본 프롬프트"},
     "improve1": {"prompt": "improve1_prompt.txt",  "self_verify": False,
-                 "label": "개선1 · 프롬프트 엔지니어링 (규칙 강화)"},
+                 "label": "(구) 개선1 초안 — 평면 헤더", "legacy": True},
     "improve2": {"prompt": "improve2_context.txt", "self_verify": False,
-                 "label": "개선2 · 컨텍스트 엔지니어링 ([T#] 구조화)"},
+                 "label": "(구) 개선2 초안 — 평면 헤더", "legacy": True},
     "improve3": {"prompt": "improve2_context.txt", "self_verify": True,
-                 "label": "개선3 · Test-Time Scaling (자기검증 2패스)"},
-    "soap":     {"prompt": "soap.txt",             "self_verify": False,  # 명시적 S/O/A/P + 세부헤더
-                 "label": "최종 · SOAP 규격 (컨텍스트+인용+미확인)"},
-    "soap_hard": {"prompt": "soap_hard.txt",     "self_verify": False,
-                  "label": "최종·강화 · 노이즈 대응 규칙 (거짓전제·타인정보·조건부)"},
-    "soap_strict": {"prompt": "soap_strict.txt",   "self_verify": False, "structured": True,
-                    "label": "최종+ · 구조 강제 디코딩 (스키마 보장)"},  # 형식·인용범위를 디코더가 강제
-    "soap_fewshot": {"prompt": "soap_fewshot.txt", "self_verify": False,  # 실패모드 3예시(미확인A/P·자기진단·보호자)
-                     "label": "최종+예시 · Few-shot (실패모드 예시 3종)"},
-    "soap_fewshot_v2": {"prompt": "soap_fewshot_v2.txt", "self_verify": False,  # 고은 예시 18종(규칙4+노이즈5, 반례 포함)
-                        "label": "최종+예시 v2 · Few-shot (고은 18예시)"},
+                 "label": "(구) 자기검증 2패스 — 무익 판정으로 폐기", "legacy": True},
     "soap_nocite": {"prompt": "soap_nocite.txt", "self_verify": False,  # A안 사다리 개선1′ = soap 규격+규칙, 인용 없음
-                    "label": "개선1′ · 규격+규칙 (인용 없음)"},
+                    "label": "개선1 · 프롬프트 엔지니어링 (SOAP 규격 + 규칙 3종)"},
+    "soap":     {"prompt": "soap.txt",             "self_verify": False,  # 명시적 S/O/A/P + 세부헤더
+                 "label": "개선2 · 컨텍스트 엔지니어링 (턴번호 + [T#] 인용 강제)"},
+    "soap_hard": {"prompt": "soap_hard.txt",     "self_verify": False,
+                  "label": "노이즈 강화 · 개선2 + 방어 규칙 7종"},
+    "soap_strict": {"prompt": "soap_strict.txt",   "self_verify": False, "structured": True,
+                    "label": "(실험) 구조 강제 디코딩", "legacy": True},  # 형식·인용범위를 디코더가 강제
+    "soap_fewshot": {"prompt": "soap_fewshot.txt", "self_verify": False,  # 실패모드 3예시(미확인A/P·자기진단·보호자)
+                     "label": "Few-shot · 개선2 + 실패모드 예시 3종"},
+    "soap_fewshot_v2": {"prompt": "soap_fewshot_v2.txt", "self_verify": False,  # 고은 예시 18종(규칙4+노이즈5, 반례 포함)
+                        "label": "(실험) Few-shot 18예시 — 역효과로 미채택", "legacy": True},
 }
 SELF_VERIFY_PROMPT = "improve3_selfverify.txt"
-JUDGE_PROMPT = "judge_grounded.txt"
+JUDGE_PROMPT = "judge_grounded_cot.txt"
 # 판정 응답 토큰 상한. 직판정(JSON 한 줄)은 60이면 충분하고, CoT 판정
 # (judge_grounded_cot.txt)은 추론 단계가 앞에 붙으므로 300 정도가 필요하다.
-JUDGE_MAX_TOKENS = 60
+JUDGE_MAX_TOKENS = 380
