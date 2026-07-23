@@ -74,26 +74,47 @@
   .turn.doctor .bubwrap { align-items:flex-end; }
   .meta { font-size:11px; color:#8a93a3; margin:0 4px 3px; }
   .meta b { color:#3d4757; font-weight:700; }
-  .bubble { padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.6; white-space:pre-wrap;
+  .bubble { padding:10px 13px; border-radius:14px; font-size:14px; line-height:1.62; white-space:pre-wrap;
             word-break:break-word; cursor:pointer; }
   .turn.patient .bubble { background:#f2f4f7; border:1px solid #e9ecf1; border-top-left-radius:4px; }
   .turn.doctor .bubble { background:#e9f0fd; border:1px solid #d9e5fb; border-top-right-radius:4px; }
   .turn.other .bubble { background:#f5f3ff; border:1px solid #e6e0fb; }
   .turn.lit .bubble { background:#fdf6dc !important; border-color:#f0d488 !important; box-shadow:0 0 0 3px #f7e7ac66; }
 
-  /* ── SOAP 카드 (목업: 흰 카드 + 파란 타이틀 통일) ── */
-  .soap { border:1px solid #e7eaf0; border-radius:11px; margin:0 0 10px; background:#fff; }
-  .soaphead { font-weight:800; font-size:13px; color:#1d4ed8; padding:11px 14px 3px; letter-spacing:-.01em; }
-  .badge { color:#1d4ed8; font-weight:800; margin-right:2px; }
-  .U .soaphead, .U .badge { color:#6a7383; }
-  .soapbody { padding:3px 14px 11px; font-size:13.3px; }
-  .subhdr { font-weight:700; font-size:10.8px; color:#8a93a3; text-transform:uppercase; letter-spacing:.05em; margin:9px 0 2px; }
+  /* ── SOAP 카드 — 구역별 색 구분(왼쪽 색 띠 + 옅은 배경 + 색 배지) ──
+     문장 단위 의미색(환각 빨강 / 선택 노랑 / 미확인 회색)과 겹치지 않도록
+     배경은 아주 옅게 두고, 채도 높은 색은 왼쪽 띠와 배지가 담당한다. */
+  .soap { border:1px solid #e7eaf0; border-left:5px solid #c3c9d4; border-radius:11px;
+          margin:0 0 12px; background:#fff; }
+  .soaphead { font-weight:800; font-size:15px; color:#1d4ed8; padding:12px 15px 4px;
+              letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+  .badge { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px;
+           border-radius:7px; background:#1d4ed8; color:#fff; font-weight:900; font-size:13px;
+           margin-right:0; flex:none; }
+  .soapbody { padding:4px 15px 13px; font-size:14.6px; }
+  .subhdr { font-weight:700; font-size:11.6px; color:#8a93a3; text-transform:uppercase;
+            letter-spacing:.05em; margin:10px 0 3px; }
+
+  .soap.S { border-left-color:#3b82f6; background:#f5f9ff; }
+  .soap.S .soaphead { color:#1d4ed8; }  .soap.S .badge { background:#3b82f6; }
+  .soap.O { border-left-color:#10b981; background:#f3fbf8; }
+  .soap.O .soaphead { color:#047857; }  .soap.O .badge { background:#10b981; }
+  .soap.A { border-left-color:#8b5cf6; background:#f8f6ff; }
+  .soap.A .soaphead { color:#6d28d9; }  .soap.A .badge { background:#8b5cf6; }
+  .soap.P { border-left-color:#db2777; background:#fef6fa; }
+  .soap.P .soaphead { color:#be185d; }  .soap.P .badge { background:#db2777; }
+  .soap.U { border-left-color:#9aa3b2; background:#fafbfc; }
+  .U .soaphead { color:#6a7383; }  .U .badge { background:#9aa3b2; }
+  /* A·P가 한 덩어리로만 나뉘는 경우(주로 baseline 쪽) — 두 색의 중간 */
+  .soap.AP { border-left-color:#a855f7; background:#faf6fd; }
+  .soap.AP .soaphead { color:#7e22ce; }
+  .soap.AP .badge { background:#a855f7; width:auto; padding:0 6px; }
   .ln { white-space:pre-wrap; word-break:break-word; padding:3.5px 5px; margin:1px -5px; border-radius:7px; line-height:1.62; }
   .ln[data-turns] { cursor:pointer; }
-  .ln[data-turns]:hover { background:#f6f8fb; }
+  .ln[data-turns]:hover { background:rgba(255,255,255,.85); box-shadow:0 0 0 1px #e7eaf0 inset; }
   .ln.sel { background:#fdf3d0; }
   .ln.hedge { text-decoration:underline; text-decoration-color:#f2c14e; text-decoration-thickness:2px; text-underline-offset:3px; }
-  .ln.unk { background:#f7f8fa; border:1.5px dashed #d3d9e2; color:#7a8494; font-size:12.3px;
+  .ln.unk { background:#fff; border:1.5px dashed #d3d9e2; color:#7a8494; font-size:13.4px;
             padding:8px 12px; margin:5px 0; border-radius:9px; text-decoration:none; }
   .ln.hallu { color:#b91c1c; }
   .ln.hallu .chip { border-color:#f3b4b4; color:#b91c1c; background:#fff; }

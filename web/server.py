@@ -31,8 +31,10 @@ ST = SectionTagger()
 HERE = Path(__file__).resolve().parent
 app = FastAPI(title="SOAP Playground")
 
-SOAP_LABEL = {"S": "— Subjective", "O": "— Objective", "A": "— Assessment",
-              "P": "— Plan", "AP": "— Assessment & Plan", "U": "· 기타/미분류"}
+# 앞의 색 배지가 S/O/A/P 글자를 이미 보여주므로 라벨은 이름만 (배지 + 이름 형태).
+SOAP_LABEL = {"S": "Subjective · 환자 진술", "O": "Objective · 관찰·측정",
+              "A": "Assessment · 평가", "P": "Plan · 계획",
+              "AP": "Assessment & Plan · 평가·계획", "U": "기타 / 미분류"}
 
 
 def _dedup_repeat(note):
