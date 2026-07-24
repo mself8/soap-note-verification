@@ -269,9 +269,11 @@ def fig_noise_by_type(data):
     return fig
 
 
-def render_all(data=None, outdir=FIGDIR):
+def build_figures(data=None):
+    """11장 [(파일명, figure)] 목록을 만든다. 파일 저장은 호출측 몫 —
+    CLI(render_all)는 저장하고, 노트북은 그대로 인라인 표시한다.
+    data 미지정 시 커밋된 집계본(reports/figure_data.json)을 읽는다."""
     data = data or load_data()
-    outdir = Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
     jobs = []
 
     # 실험 1 — 단계 사다리 5장
@@ -281,9 +283,9 @@ def render_all(data=None, outdir=FIGDIR):
                  "hr": "실험 1 · 단계별 환각률 — 근거 없는 문장 비율",
                  "cite": "실험 1 · 단계별 인용 정밀도 — 인용은 개선 2에서 도입",
                  "bert": "실험 1 · 단계별 BERTScore — 의미 유사도"}[key]
-        jobs.append((_line_chart(data["ladder"][key], LADDER_XLAB, title,
-                                 data["meta"]["ladder_eval"], ylab, fmt, unit),
-                     f"exp1_{key}.png"))
+        jobs.append((f"exp1_{key}.png",
+                     _line_chart(data["ladder"][key], LADDER_XLAB, title,
+                                 data["meta"]["ladder_eval"], ylab, fmt, unit)))
 
     # 실험 2 — 노이즈 전략 5장
     for key, ylab, fmt, unit in METRICS:
@@ -292,14 +294,19 @@ def render_all(data=None, outdir=FIGDIR):
                  "hr": "실험 2 · 노이즈 대화 환각률 — 전략별",
                  "cite": "실험 2 · 노이즈 대화 인용 정밀도",
                  "bert": "실험 2 · 노이즈 대화 BERTScore"}[key]
-        jobs.append((_line_chart(data["noise"][key], NOISE_XLAB, title,
-                                 data["meta"]["noise_eval"], ylab, fmt, unit),
-                     f"exp2_{key}.png"))
+        jobs.append((f"exp2_{key}.png",
+                     _line_chart(data["noise"][key], NOISE_XLAB, title,
+                                 data["meta"]["noise_eval"], ylab, fmt, unit)))
 
     # 실험 2 — 유형별 환각률 1장
-    jobs.append((fig_noise_by_type(data), "exp2_hr_by_type.png"))
+    jobs.append(("exp2_hr_by_type.png", fig_noise_by_type(data)))
+    return jobs
 
-    for fig, name in jobs:
+
+def render_all(data=None, outdir=FIGDIR):
+    outdir = Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
+    jobs = build_figures(data)
+    for name, fig in jobs:
         fig.savefig(outdir / name, bbox_inches="tight")
         plt.close(fig)
         print(f"[figures] 저장 → {outdir / name}")
