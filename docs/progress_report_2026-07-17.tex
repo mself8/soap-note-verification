@@ -1,0 +1,485 @@
+\documentclass[10.5pt,a4paper]{article}
+\usepackage{kotex}
+\usepackage{fontspec}
+
+% 한글·영문을 한 가족으로 통일 (폰트 불일치 제거)
+\setmainfont{Noto Sans CJK KR}[BoldFont={Noto Sans CJK KR Bold}]
+\setmainhangulfont{Noto Sans CJK KR}[BoldFont={Noto Sans CJK KR Bold}]
+\setmonofont{NanumGothicCoding}[Scale=0.92]
+\setmonohangulfont{NanumGothicCoding}[Scale=0.92]
+
+% 본문 폭을 한글 가독 범위(약 45자/줄)로 좁힘
+\usepackage[left=3.0cm,right=3.0cm,top=2.5cm,bottom=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{pifont}
+\usepackage{needspace}
+\usepackage{etoolbox}
+% 섹션 제목이 페이지 끝에 홀로 남아 밑줄만 다음 장으로 넘어가는 것 방지
+\pretocmd{\section}{\needspace{5\baselineskip}}{}{}
+\emergencystretch=1.5em
+
+\definecolor{navy}{HTML}{1F3864}
+\definecolor{accent}{HTML}{C00000}
+\definecolor{softgray}{HTML}{F4F5F7}
+\definecolor{rulegray}{HTML}{C9CDD4}
+\definecolor{okgreen}{HTML}{2E7D32}
+\definecolor{bodytext}{HTML}{1A1A1A}
+\definecolor{muted}{HTML}{5A6270}
+
+% Noto Sans CJK KR에는 이탤릭 페이스가 없다 → \emph가 평문으로 죽는다.
+% 한글 문서에선 이탤릭이 관행도 아니므로, \emph를 '부가 설명(뒤로 물러남)'용 회색으로 재정의.
+% 진짜 강조는 \textbf 를 쓴다.
+\renewcommand{\emph}[1]{{\color{muted}#1}}
+
+\hypersetup{colorlinks=true, linkcolor=navy, urlcolor=navy}
+\color{bodytext}
+
+% 한글에 맞는 넉넉한 줄간격 + 문단 사이 여백(들여쓰기 대신)
+\linespread{1.42}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.62em}
+
+\renewcommand{\thesection}{\Alph{section}}
+\titleformat{\section}[block]
+  {\Large\bfseries\color{navy}}{\thesection.}{0.45em}{}
+  [\vspace{-0.5em}\color{rulegray}\rule{\linewidth}{0.6pt}]
+\titlespacing*{\section}{0pt}{2.0em}{0.9em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\footnotesize\color{navy} SOAP 노트 검증 자동화 — 진행상황 공유}
+\rhead{\footnotesize\color{navy} 1조 / 2026-07-17}
+\cfoot{\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlist[itemize]{leftmargin=1.2em, itemsep=3pt, topsep=4pt, parsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em, itemsep=5pt, topsep=4pt, parsep=0pt}
+\renewcommand{\arraystretch}{1.28}
+
+% ── 블록 매크로 ──────────────────────────────────────────
+% 조사한 것: 좌측 세로선 + 라벨
+\newcommand{\investigated}[1]{%
+\begin{tcolorbox}[enhanced, blank, breakable,
+  borderline west={2.2pt}{0pt}{rulegray},
+  left=10pt, right=0pt, top=2pt, bottom=2pt, before skip=6pt, after skip=10pt]
+{\footnotesize\bfseries\color{navy}조사한 것}\\[2pt]#1
+\end{tcolorbox}}
+
+% 확인된 사실 항목: 네이비 막대 + 굵은 주장문 (본문은 평문)
+\newcommand{\finding}[1]{%
+\par\vspace{0.9em}\noindent
+\textcolor{navy}{\rule[-0.05em]{2.4pt}{0.82em}}\hspace{0.55em}\textbf{#1}\par\nobreak\vspace{0.15em}}
+
+% 제안: 연회색 배경 + 네이비 좌측선
+\newcommand{\proposal}[1]{%
+\begin{tcolorbox}[enhanced, breakable, colback=softgray, boxrule=0pt, frame hidden,
+  borderline west={3pt}{0pt}{navy}, arc=0pt,
+  left=12pt, right=10pt, top=8pt, bottom=8pt, before skip=12pt, after skip=8pt,
+  before upper={\setlength{\parskip}{0.7em}\setlength{\parindent}{0pt}}]
+{\bfseries\color{navy}→ 이렇게 하는 것이 맞다}\\[3pt]#1
+\end{tcolorbox}}
+
+% 경고/핵심 박스
+\newcommand{\keybox}[1]{%
+\begin{tcolorbox}[enhanced, breakable, colback=white, boxrule=1pt, colframe=accent, arc=1pt,
+  left=11pt, right=10pt, top=8pt, bottom=8pt, before skip=12pt, after skip=8pt,
+  before upper={\setlength{\parskip}{0.6em}\setlength{\parindent}{0pt}}]
+#1
+\end{tcolorbox}}
+
+\newcommand{\hl}[1]{\textbf{\color{accent}#1}}
+\newcommand{\yes}{\textcolor{okgreen}{\ding{51}}}
+\newcommand{\no}{\textcolor{accent}{\ding{55}}}
+\newcommand{\subhead}[1]{\par\vspace{1.0em}{\bfseries\color{navy}#1}\par\vspace{-0.15em}}
+
+\begin{document}
+
+\thispagestyle{fancy}
+\begin{center}
+{\LARGE\bfseries\color{navy} SOAP 노트 검증 자동화}\\[5pt]
+{\large\color{navy} 진행상황 공유}\\[10pt]
+{\small 인공지능 커리어패스 1조 \quad·\quad 2026년 7월 17일 \quad·\quad 작성: 송윤}\\[3pt]
+{\footnotesize\ttfamily github.com/mself8/soap-note-verification}
+\end{center}
+\vspace{0.3em}
+{\color{navy}\rule{\linewidth}{1pt}}
+\vspace{0.8em}
+
+\section*{\color{navy}0. 요약}
+
+이틀간 두 가지를 했다.
+
+\begin{enumerate}
+\item 계획서가 ``사실''로 전제한 주장 \textbf{4건을 실제 데이터로 대조했고, 4건 모두 어긋났다.} 넷 다 지금 고치면 프로젝트가 오히려 강해지는 방향이다.
+\item \textbf{생성 → 평가 파이프라인을 구축해 E2E로 통과시켰다.} 다만 본 실험(모델 4종 × 프롬프트 4단계)은 모델 가중치 다운로드 대기 중이다.
+\end{enumerate}
+
+\keybox{
+{\bfseries 하나만 고른다면 — E항목이다.}\\[4pt]
+\hl{ROUGE/BERTScore는 환각과 상관이 없다} (r $\approx$ $-0.08$, n=400 실측). 누락과는 강한 상관($-0.5$)이 있지만 환각에는 사실상 눈이 멀어 있다. 즉 계획서 §5-2의 평가 설계로는 이 프로젝트의 핵심 주장인 ``환각을 줄였다''를 측정할 수 없다.\\[4pt]
+자동지표를 버리자는 게 아니라 \textbf{역할을 재배치}하자는 제안이다 (§E).
+}
+
+아래는 §10의 A--E 분담 항목별로 \textbf{무엇을 조사했고 → 무엇이 확인됐고 → 어떻게 하는 게 맞는지} 정리한 것이다. 모든 수치는 \texttt{recon/} 스크립트로 재현된다.
+
+\section{데이터 확보 · 전처리 + 잡음/함정 유형}
+
+\investigated{MTS-Dialog(1,701건)과 ACI-Bench(207건)를 전수 실측했다. 규모·구조·N/A 표기·입도·화자태그·섹션 스키마, 그리고 잡음 유형별 실제 출현 빈도까지 세었다. 유형을 상상으로 짜지 않고 ``벤치마크에 이미 있는 잡음은 빼고, 없는 것만 자체 제작''하기 위한 근거를 확보하는 것이 목적이었다.}
+
+\subhead{확인된 사실}
+
+\finding{계획서 §3-1의 ``정보가 없으면 N/A로 표기'' → \hl{1,301행 중 0건}}
+
+라벨 공개 세트 전수를 전체값·부분문자열 양쪽으로 검색했으나 N/A가 하나도 없다. 이유가 있다. MTS-Dialog의 1행은 ``이 스니펫에 \textbf{존재하는} 섹션 하나''만 담는 구조라, 부재를 적을 자리 자체가 없다.
+
+\finding{MTS-Dialog으로는 SOAP 노트 생성 평가가 불가능하다}
+
+\begin{center}\small
+\begin{tabular}{@{}lp{4.3cm}p{3.7cm}@{}}
+\toprule
+ & \textbf{MTS-Dialog} & \textbf{ACI-Bench} \\
+\midrule
+규모 & 1,701건 & 207건 \\
+1행 = & 6턴 / 63단어 → 20헤더 중 1개 → 14단어 요약 & 1,240단어 full-visit → 415단어 전체 노트 \\
+SOAP 4파트 & \hl{불가} \newline (1행당 섹션 1개) & 가능 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\finding{잡음 유형별 실측 빈도 — 이미 있는 건 만들 필요가 없다}
+
+\begin{center}\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{잡음 유형} & \textbf{ACI 실측} & \textbf{판단} \\
+\midrule
+filler (um/uh/mm-hmm) & 207/207 (100\%) & 이미 충분 → 제작 불필요 \\
+정정·되묻기 & 155/207 (75\%) & 이미 충분 \\
+발화 끊김 & 65/207 (31\%) & 존재, 보강 여지 \\
+잡담·화제이탈 & 52/207 (25\%) & 존재 \\
+제3화자 \texttt{[patient\_guest]} & 5/207 (2\%) & \hl{희소 → 제작 가치} \\
+ASR 화자태그 오류 & ACI엔 없음 & \hl{제작 가치} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\proposal{
+\textbf{① ACI-Bench를 주 데이터, MTS-Dialog을 보조로 확정한다.}
+MTS-Dialog은 버리지 않고 섹션 매핑·hedge 어휘·정정 패턴의 근거자료로 쓴다. \emph{(계획서 §5-5 수정 필요)}
+
+\textbf{② ``미확인 명시''를 물려받는 관행이 아니라 우리 기여로 재프레이밍한다.}
+N/A 관행이 없다는 건 나쁜 소식이 아니다. 표기법을 정의할 사람이 우리라는 뜻이고, 이건 기여를 강화한다. \emph{(계획서 §3-1 문장 수정 필요)}
+
+\textbf{③ 자체 잡음셋은 4종만 만든다.}
+(i) ASR 화자 오태깅, (ii) 제3화자가 환자 정보를 대신 진술, (iii) 시간 순서 뒤섞임, (iv) 재질문에 의한 수치 정정.
+filler·구어체는 만들 필요 없다 — 이미 100\%라 노력 낭비다.
+}
+
+\section{규칙 설계 및 프롬프트 구현}
+
+\investigated{규칙 4종을 상상이 아니라 정답 노트(gold note)와 직접 대조해 도출했다. 각 규칙에 데이터 근거를 1건 이상 붙이는 것이 목표였다.}
+
+\subhead{확인된 사실}
+
+\finding{``환자 발화→S, 의사 발화→O/A''는 첫 대화에서 바로 반례가 나온다}
+
+ACI valid 첫 대화에서 \textbf{의사}가 이렇게 말한다:
+
+{\small\ttfamily\color{navy}[doctor] so, brian is a 58 year old male with a past medical history significant for congestive heart failure...}
+
+그런데 이 내용이 정답 노트에서 간 곳은 \textbf{HISTORY OF PRESENT ILLNESS}, 즉 \textbf{S(주관적)}다. 화자는 의사인데 섹션은 S다. 의사는 진료 내내 병력을 구술 정리(dictation)하기 때문이다.
+
+\finding{확신도(hedge) 보존은 정답 노트가 이미 지키고 있는 규약이다}
+
+\begin{center}\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{어휘군} & \textbf{MTS 노트} & \textbf{ACI 노트} \\
+\midrule
+\texttt{denies} (명시적 부정단언) & 184 & 202 \\
+\texttt{reports}/\texttt{states} (환자보고) & 247 & 323 \\
+\texttt{appears}/\texttt{seems} (관찰 추정) & 49 & 24 \\
+\texttt{likely}/\texttt{suspected} (추정) & 24 & 46 \\
+\texttt{no evidence of} (음성소견) & 70 & 45 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+확신도 보존은 우리가 발명하는 게 아니라 정답이 이미 지키는 규약이다. 규칙화 근거가 확실하다.
+
+\finding{citation은 precision만 측정 가능하다}
+
+정답 citation 데이터가 존재하지 않는다. ``생성한 근거가 실제 그 turn에 있나''(precision)는 측정되지만, ``있어야 할 근거를 다 달았나''(recall)는 측정 불가다. 이 비대칭을 지표 정의에 명시해야 한다.
+
+\proposal{
+\textbf{① 분류축을 화자 → 발화행위(speech act)로 교체한다.}
+병력 서술→S / 진찰·측정값→O / 진단·감별→A / 처방·오더·교육→P.
+화자 태그는 citation 추적엔 필수지만 S/O/A/P 분류축은 아니다 — 두 용도를 분리한다. \emph{(계획서 §10-B 교체 필요)}
+
+\textbf{② hedge 규칙은 자작하지 말고 \texttt{i2b2 2010 assertion} 6분류를 채택한다.}
+(present / absent / possible / conditional / hypothetical / not-associated)
+\texttt{denies}=absent, \texttt{likely}=possible로 자연스럽게 대응되고, 기성 표준이라 발표 방어에 유리하다. \emph{(회의 안건 — 채택 권장)}
+
+\textbf{③ 미확인 표기법은 우리가 정의한다.}
+\texttt{[미확인: 대화에서 언급되지 않음]}. 자유생성으로 채우는 것을 금지한다.
+
+\textbf{④ citation 지표는 precision·turn-match만 쓰고} recall 부재를 한계로 명시한다.
+}
+
+\section{자체 데이터 구축}
+
+\investigated{자체 데이터 포맷을 ACI-Bench에 맞출 수 있는지, 음성 라벨 채점법에 함정이 없는지, 사람이 직접 쓰는 분량이 현실적인지를 검토했다.}
+
+\subhead{확인된 사실}
+
+\finding{ACI 스키마에 맞추면 공식 스코어러를 그대로 재사용할 수 있다}
+
+컬럼을 \texttt{dataset, encounter\_id, dialogue, note}로 맞추면 자작 채점 스크립트가 불필요해진다. (→ D항목)
+
+\finding{\hl{음성 라벨을 exact-match로 채점하면 환각을 놓친다}}
+
+계획서 §3-2는 함정 케이스에 ``나오면 안 되는 문장''을 명시하자고 한다. 그런데 생성 노트는 paraphrase를 하기 때문에 금지 문장이 글자 그대로 나오지 않는다. 문자열 매칭으로 채점하면 환각이 있는데도 통과시킨다.
+
+\finding{사람이 쓰는 분량이 부담이다}
+
+ACI-Bench 노트 중앙값이 415단어다. 50건 × 415단어를 의료 배경 없는 팀이 직접 작성하는 건 큰 부담이다. (정답 노트를 LLM에 위임하지 않는다는 원칙 자체는 타당하다 — 채점 순환오류 방지)
+
+\proposal{
+\textbf{① 음성 라벨을 두 필드로 분리 설계한다.}
+\begin{itemize}
+\item \texttt{forbidden\_claims} — 의미 단위의 자연어 명제 (예: ``환자가 흉통을 부인했다'')
+\item \texttt{unknown\_required} — 미확인 처리돼야 할 항목 (예: ``가족력'')
+\end{itemize}
+채점은 문자열 매칭이 아니라 entailment / LLM-judge로 한다. ``생성 노트가 이 forbidden\_claim을 함의하는가?'' → Yes면 환각 1건.
+
+\textbf{② 파일럿 1건을 실제로 작성해 소요시간을 재고 §9 일정을 재산정한다.}
+\emph{(현재 미완 — 우선순위 높음. 이게 있어야 아래 완화 옵션 중 무엇이 필요한지 정해진다.)}
+
+\textbf{③ 분량 완화 옵션 (회의 안건).}
+(i) 잡음셋은 full-visit 대신 단일 섹션 집중, (ii) 함정셋은 ACI 기존 노트를 변형해 작성 부담을 낮춤, (iii) 규모를 50→30건으로 줄이고 유형당 품질을 높임.
+}
+
+\section{백엔드 파이프라인 구축}
+
+\investigated{회의 결정(``HuggingFace 오픈모델 다중 비교'')에 따라 생성 파이프라인을 구현했다. 이 머신에 A6000 4장이 유휴 상태라 API 키 없이 로컬 vLLM으로 돌리는 것이 정답이었다.}
+
+\subhead{확인된 사실 · 만든 것}
+
+\finding{\hl{공식 채점기가 이미 존재한다 — 자작하지 않는다}}
+
+ACI-Bench 레포의 evaluation 폴더에 있는 \texttt{evaluate\_fullnote.py}가 MEDIQA-Chat 공식 스코어러(ROUGE / BERTScore / BLEURT / UMLS concept F1)다. 계획서 §10-D의 ``ROUGE/BERTScore 자동 계산 스크립트 자작''은 불필요하다. 공식 채점기를 써야 선행연구 수치와 직접 비교가 된다.
+
+\finding{프롬프트 4단계를 구현했다}
+
+핵심 설계는 ``장치를 하나씩 더해가며 환각이 실제로 줄어드는지 본다''이다. A·B항목의 조사 결과가 여기에 전부 반영돼 있다.
+
+\begin{center}\small
+\begin{tabular}{@{}>{\ttfamily}lp{9.0cm}@{}}
+\toprule
+\rmfamily\textbf{단계} & \textbf{내용} \\
+\midrule
+baseline & ``이 대화를 임상노트로 요약해줘'' 한 줄. 아무 장치 없는 \textbf{대조군}. \\
+improve1 & 역할 부여 + SOAP 섹션 헤더 지정 + ``지어내지 마'' 명시. \\
+improve2 & \textbf{본체.} 대화 턴에 \texttt{[T0] [T1]} 번호를 매겨 제공 + 규칙 4종:
+\newline RULE 1 — 발화행위로 분류 \emph{(← B)}
+\newline RULE 2 — 확신도 보존, i2b2 assertion \emph{(← B)}
+\newline RULE 3 — 모르는 건 \texttt{[미확인]}, 채우기 금지 \emph{(← A·B)}
+\newline RULE 4 — 문장 끝에 근거 턴 \texttt{[T3]} 표기 \emph{(← B)} \\
+improve3 & improve2 결과를 다시 모델에게 ``감사관''으로 재검증시킴(2패스). \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\finding{모델 추가 = 설정 한 줄}
+
+\texttt{config.py}의 \texttt{MODELS}에 한 줄 추가하면 새 모델이 격자에 들어온다. 단계도 프롬프트 파일 하나로만 갈린다. 생성 환경(GPU/vLLM)과 평가 환경(CPU/ROUGE)을 분리하고 중간은 CSV로만 주고받는다 — ACI-Bench가 구버전 패키지를 핀해놔서 격리가 필수였다.
+
+\finding{삽질 기록 — 다음 사람은 겪지 않는다}
+
+vLLM이 flashinfer 샘플러 JIT 컴파일에 3연속 실패했다. 원인은 시스템 CUDA 부재였다. \texttt{VLLM\_USE\allowbreak\_FLASHINFER\allowbreak\_SAMPLER=0}으로 우회했고 greedy 디코딩이라 결과는 동등하다. serve 스크립트에 내장했다.
+
+\proposal{
+\textbf{① 채점 스크립트를 새로 짜지 않는다.} 공식 스코어러를 쓴다. 자체 데이터도 ACI 스키마에 맞추면 그대로 적용된다.
+
+\textbf{② improve2 프롬프트 최종 확정이 필요하다 (B 담당).}
+현재 스타터 프롬프트에서 모델이 섹션 내용을 \texttt{[\ldots]}로 감싸는 버릇이 관찰됐다. 이게 실제로 측정을 오염시켰다. (→ §F 정정 사항)
+}
+
+\section{평가 · 검증}
+
+\investigated{계획서 §5-2의 평가 전제를 직접 재계산했다. 계획서는 ``두 지표 모두 원 논문에서 사람 채점과의 상관이 확인됐으므로 \textbf{별도의 타당성 검증 없이} 채택 근거를 확보한다''고 적었다.\\[4pt]
+여기에 함정이 있다. 그 논문이 확인한 상관은 노트의 \textbf{전체 품질}과의 상관이지 \textbf{환각}과의 상관이 아니다. 서로 다른 질문이다.\\[4pt]
+마침 MTS-Dialog 레포에 재계산할 원자료가 그대로 있었다(생성 요약 400개 + 같은 순서의 사람 채점). README가 ``다른 지표로 이 상관연구를 수행하라''고 명시적으로 초대까지 하고 있어, 직접 계산했다.}
+
+\subhead{확인된 사실 — 이번 조사 최대 임팩트}
+
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{자동지표} & \textbf{전체품질} & \textbf{환각률} & \textbf{누락률} \\
+\midrule
+ROUGE-1 & 0.401 & \hl{$-0.074$} & $-0.467$ \\
+ROUGE-2 & 0.202 & \hl{$-0.049$} & $-0.226$ \\
+ROUGE-L & 0.411 & \hl{$-0.073$} & $-0.465$ \\
+BERTScore-F1 & 0.516 & \hl{$-0.099$} & $-0.514$ \\
+\bottomrule
+\end{tabular}
+\\[5pt]
+{\footnotesize Pearson $r$, n=400 \quad·\quad 재현: \texttt{python recon/correlation\_check.py}}
+\end{center}
+
+세 열이 완전히 다른 이야기를 한다.
+
+\begin{itemize}
+\item \textbf{전체품질 (0.40--0.52)} — 계획서가 채택 근거로 든 상관. 중간 정도로 실재한다. 자동지표를 ``전체 유사도 확인용''으로 쓰는 건 정당하다. \yes
+\item \textbf{환각률 ($-0.05$--$-0.10$)} — \hl{사실상 0}. 노트가 대화에 없는 내용을 지어내도 이 지표들은 반응하지 않는다.
+\item \textbf{누락률 ($-0.47$--$-0.51$)} — 강한 상관. 자동지표는 누락은 잘 잡는다.
+\end{itemize}
+
+\subhead{왜 이렇게 되는가}
+
+ROUGE는 ``정답 노트와 단어가 얼마나 겹치나''를 센다.
+
+모델이 없는 말을 \textbf{지어내서 덧붙이면} 정답에 있던 단어는 여전히 다 들어있으니 겹침이 별로 안 줄어든다 → \textbf{눈치를 못 챈다.}
+
+반대로 내용을 \textbf{빠뜨리면} 겹쳐야 할 단어가 사라지니 점수가 확 떨어진다 → \textbf{바로 잡아낸다.}
+
+즉 \textbf{누락에는 민감하고 환각에는 장님}이라는 비대칭이다. 이는 요약 품질지표가 factual consistency와 약하게만 상관한다는 기존 문헌과도 일치한다. 우리 데이터로 직접 확인한 것이다.
+
+\keybox{
+{\bfseries\color{accent}핵심 문제}\\[3pt]
+이 프로젝트가 파는 건 환각 방지다. 그런데 계획서 §5-2의 자동지표는 우리 주장의 절반(누락)만 커버하고 핵심 절반(환각)은 전혀 커버하지 못한다.\\[5pt]
+{\bfseries 지금 알아서 다행인 이유}\\[3pt]
+이걸 4일차 평가일에 알았다면 ``baseline보다 개선판이 환각이 적다''를 ROUGE로 보여주려다 \textbf{지표가 아예 안 움직이는} 벽에 부딪혔을 것이다. 지금 알았으므로 개선2·개선3 프롬프트를 처음부터 LLM-judge로 채점되는 것을 목표로 설계할 수 있었다.
+}
+
+\proposal{
+자동지표를 버리는 게 아니라 역할을 데이터에 맞게 재배치한다. 계획서 §5-2를 \textbf{``자동지표는 유사도·누락용으로 위치를 좁히고, 환각은 §5-3(LLM-judge + 함정셋)이 담당''}으로 수정한다.
+}
+
+\begin{center}\small
+\begin{tabular}{@{}lp{4.6cm}p{2.9cm}@{}}
+\toprule
+\textbf{측정 대상} & \textbf{주 지표} & \textbf{보조} \\
+\midrule
+노트 전체 유사도 & ROUGE-L / BERTScore & --- \\
+누락 & ROUGE recall / OmissionRate & --- \\
+\textbf{환각} ← 핵심 & \textbf{LLM-judge 이진판정} + 함정셋 금지문장 검출률 & \textbf{ROUGE 아님} \\
+근거 정확도 & citation precision & recall은 측정 불가 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subhead{LLM-judge 설계 (환각 주지표)}
+
+노트를 문장 단위로 쪼갠 뒤, 각 문장마다 강한 모델에게 대화 전문과 함께 묻는다 — \emph{``이 문장, 대화에 근거가 있는가?''} 답은 JSON 한 줄로 받는다: \texttt{\{"grounded": true, "turn": 5\}}. 여기서 네 지표가 나온다.
+
+\begin{itemize}
+\item \texttt{hallucination\_rate} — 근거 없는 문장 비율 \textbf{(핵심 지표)}
+\item \texttt{citation\_precision} — 모델이 \texttt{[T3]}을 단 문장 중 실제로 근거가 있는 비율
+\item \texttt{citation\_turn\_match} — 모델이 지목한 턴이 judge가 고른 턴과 실제로 같은지 (엉뚱한 턴을 가리키며 맞는 척하는 것을 잡음)
+\item citation recall — 측정 불가 (정답 citation 부재)
+\end{itemize}
+
+judge는 생성 모델과 분리해 Qwen2.5-32B로 고정한다. 채점자가 곧 선수면 자기 답에 후한 점수를 주기 때문이다(self-preference). 단 32B가 생성 풀에도 있으므로, 32B 자기 출력을 채점하는 칸은 caveat로 명시한다.
+
+\section{스모크 테스트 결과 — 그리고 중요한 정정}
+
+파이프라인 배관 검증용으로 ACI valid \textbf{3건}을 Qwen2.5-7B로 돌렸다. \hl{n=3이고 judge도 7B이므로 이것은 결론이 아니라 ``코드가 돈다''는 확인이다.}
+
+\subhead{baseline이 실제로 지어낸 것 — 이 프로젝트가 필요한 이유}
+
+아무 장치 없이 ``요약해줘''라고만 시켰을 때 모델이 쓴 문장이다.
+
+\begin{tcolorbox}[enhanced, colback=softgray, boxrule=0pt, frame hidden,
+  borderline west={2.2pt}{0pt}{accent}, arc=0pt, left=11pt, right=8pt, top=7pt, bottom=7pt]
+{\small ``X-rays of the right knee show no fractures, dislocations, or significant joint space narrowing; minimal joint effusion noted.''\\[4pt]
+``Prescribe acetaminophen 800 mg every 6 hours with food for two weeks.''}
+\end{tcolorbox}
+
+\hl{대화에는 X-ray 이야기가 아예 없었다.} 모델이 무릎 X-ray 판독 결과를 통째로 지어냈다. 처방 용량도 마찬가지다. 이것이 EMR에 등재되면 의료사고다. 그리고 §E에서 보았듯 ROUGE는 이걸 잡지 못한다.
+
+\subhead{정정 — 초기 수치는 측정 버그였다}
+
+처음 나온 표는 다음과 같았다. 이대로면 ``개선 프롬프트가 역효과''라는 잘못된 결론이 난다.
+
+\begin{center}\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{단계} & \textbf{초기 보고} & \textbf{껍데기 제외 후 (정정)} \\
+\midrule
+\texttt{baseline} & 0.143 (11/77) & 0.143 (11/77) \\
+\texttt{improve2} & \hl{0.235} (20/85) ← 나빠짐?! & \textcolor{okgreen}{\textbf{0.085}} (6/71) ← 절반으로 개선 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\texttt{failures.md}를 열어보니 judge가 ``근거 없음''으로 찍은 improve2 문장 20개 중 \hl{14개가 문장이 아니라 닫는 대괄호 \texttt{]} 하나짜리 파편}이었다. 모델이 섹션 내용을 \texttt{[\ldots]}로 감싸는 버릇(→ §D) 때문에 문장 분리기가 껍데기를 ``문장''으로 세서 judge에게 보냈고, judge는 당연히 ``근거 없음''이라 답한 것이다. 환각이 아니라 파싱 쓰레기였다.
+
+껍데기를 제외하면 \textbf{improve2가 환각을 거의 절반으로 줄이고 있었다.} 프로젝트가 예측한 바로 그 방향이다.
+
+다만 여전히 결론이 아니다(n=3, 7B judge). 7B judge가 \texttt{"Denies surgeries other than a nose job"} 같은 멀쩡한 문장도 근거없음으로 찍은 흔적이 있어 32B judge로 재측정이 필요하다.
+
+\proposal{
+\textbf{조치 2건.}
+(a) improve2 프롬프트의 \texttt{[\ldots]} 감싸기 교정 \emph{(B 담당)}
+(b) 문장 분리기가 대괄호 파편을 버리도록 방어 \emph{(D 담당)}
+}
+
+\section{현재 상태 · 다음 단계}
+
+파이프라인은 돌지만 \textbf{본 실험(모델 4종 × 단계 4종 × 전체 split)을 못 돌리고 있다.} 코드 문제가 아니라 모델 가중치가 아직 디스크에 없기 때문이다.
+
+\begin{center}\small
+\begin{tabular}{@{}llp{5.4cm}@{}}
+\toprule
+\textbf{모델} & \textbf{크기} & \textbf{상태} \\
+\midrule
+Qwen2.5-7B & 15GB & \yes~\textcolor{okgreen}{완료} — 스모크에 사용 \\
+Llama-3.1-8B & 16GB & \no~640MB만 받다 중단 \\
+Mistral-7B & 15GB & \no~미시작 \\
+\textbf{Qwen2.5-32B} (judge) & 65GB & \no~\hl{없음} — 이게 없으면 환각률 주지표를 못 뽑는다 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+총 $\sim$96GB 다운로드가 필요하며 디스크 여유(452GB)는 충분하다. GPU 4장은 현재 유휴다. \textbf{발표까지 남은 일정에서 다운로드 시간이 실질적인 크리티컬 패스다.}
+
+\subhead{다음 순서}
+
+\begin{enumerate}
+\item 모델 다운로드 착수
+\item 파싱 버그 수정 + improve2 프롬프트 확정
+\item 32B judge 기동
+\item 전체 격자 배치
+\item C 함정셋 도착 시 자체 데이터 평가 활성
+\end{enumerate}
+
+\section{회의 안건}
+
+\begin{enumerate}
+\item \textbf{§3-1 문장 수정} — N/A 근거 소멸 → ``미확인 명시''를 우리 기여로 재프레이밍 \emph{(A)}
+\item \textbf{§5-5 수정} — MTS-Dialog 역할 재정의 (ACI 주 / MTS 보조) \emph{(A)}
+\item \textbf{§10-B 교체} — 발화주체 규칙 → 화자 × 발화행위 매핑 \emph{(B)}
+\item \textbf{§5-2 위치 축소} — 자동지표는 유사도·누락용, 환각은 §5-3(LLM-judge)로 \emph{(E, 최우선)}
+\item \textbf{§9 일정 재산정} — 자체 데이터 파일럿 1건 실측 후 결정 \emph{(C, 선행 필요)}
+\item \textbf{i2b2 2010 assertion 6분류 채택 여부} — 기성 표준이라 방어에 유리 \emph{(B, 채택 권장)}
+\end{enumerate}
+
+\vspace{1.2em}
+{\color{rulegray}\rule{\linewidth}{0.6pt}}
+
+{\footnotesize
+\textbf{데이터 출처} \quad MTS-Dialog — Ben Abacha et al., \emph{An Empirical Study of Clinical Note Generation from Doctor-Patient Encounters}, EACL 2023. \quad ACI-Bench — Yim et al., \emph{ACI-BENCH: a Novel Ambient Clinical Intelligence Dataset}, Nature Scientific Data 2023. 둘 다 의료배경 어노테이터가 만든 합성 데이터(실제 환자 아님)라 IRB·개인정보 이슈가 없다.
+
+\textbf{재현} \quad 본 문서의 모든 수치는 \texttt{recon/verify\_claims.py}(A·B)와 \texttt{recon/correlation\_check.py}(E)로 재현된다.
+}
+
+\end{document}
